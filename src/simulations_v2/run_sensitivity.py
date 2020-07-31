@@ -11,6 +11,10 @@ import argparse
 from load_params import load_params
 from plotting_util import plot_from_folder
 
+import dask 
+import dask.multiprocessing
+
+
 BASE_DIRECTORY= os.path.abspath(os.path.join('')) + "/sim_output/"
 
 VALID_PARAMS_TO_VARY = [
@@ -98,6 +102,7 @@ def iter_param_variations(base_params, params_to_vary, param_values):
 
 
 if __name__ == "__main__":
+    dask.config.set(scheduler='processes')
 
     parser = argparse.ArgumentParser(description='Run multiple simulations using multiprocessing')
     parser.add_argument('-o', '--outputdir', default=BASE_DIRECTORY, 
@@ -193,21 +198,22 @@ if __name__ == "__main__":
             
             dill.dump(sim_params, open("{}/sim_params.dill".format(sim_sub_dir), "wb"))
             # start new process
-            fn_args = (sim_sub_dir, sim_params, ntrajectories, time_horizon)
+            #fn_args = (sim_sub_dir, sim_params, ntrajectories, time_horizon)
             #run_background_sim(*fn_args)
-            proc = multiprocessing.Process(target = run_background_sim, args=fn_args)
+            #proc = multiprocessing.Process(target = run_background_sim, args=fn_args)
             #proc.daemon = True
+            proc = dask.delayed(run_background_sim)(sim_sub_dir, sim_params, ntrajectories, time_horizon)
             jobs.append(proc)
-            proc.start()
+            #proc.start()
             if verbose:
                 print("starting process for {} value {}".format(param_to_vary, param_val))
 
     print("Running simulations for {} scenarios and {} varying parameters across {} separate processes.".format(len(scenarios), len(params_to_vary), len(jobs)))
     print("Results being saved in output directory {}.".format(sim_main_dir))
     print("Waiting for simulations to finish...")
-    for p in jobs:
-        p.join()
-
+    #for p in jobs:
+    #    p.join()
+    dask.compute(*jobs)
             
     if len(params_to_vary) > 1:
         print("Simulations done. Not auto-generating plots because > 1 parameter was varied")
