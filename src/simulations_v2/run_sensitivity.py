@@ -40,23 +40,6 @@ VALID_PARAMS_TO_VARY = [
     ]
 
 
-# def run_background_sim(output_dir, sim_params, ntrajectories=150, time_horizon=112):
-def run_background_sim(input_tuple):
-
-    output_dir = input_tuple[0]
-    sim_params = input_tuple[1]
-    ntrajectories = input_tuple[2]
-    time_horizon = input_tuple[3]
-
-    dfs = run_multiple_trajectories(sim_params, ntrajectories, time_horizon)
-
-    return output_dir, dfs
-    # record output
-    # for idx, df in enumerate(dfs):
-    #     df_file_name = "{}/{}.csv".format(output_dir, idx)
-    #     df.to_csv(df_file_name)
-
-
 def update_params(sim_params, param_to_vary, param_val):
     # VERY TEMPORARY HACK TO GET SENSITIVITY SIMS FOR ASYMPTOMATIC %
     if param_to_vary == 'asymptomatic_p':
@@ -287,6 +270,27 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
         print("Saved plots to directory {}".format(fig_dir))
 
 
+# def run_background_sim(output_dir, sim_params, ntrajectories=150, time_horizon=112):
+def run_background_sim(input_tuple):
+
+    output_dir = input_tuple[0]
+    sim_params = input_tuple[1]
+    ntrajectories = input_tuple[2]
+    time_horizon = input_tuple[3]
+
+    dfs = run_multiple_trajectories(sim_params, ntrajectories, time_horizon)
+
+    return output_dir, dfs
+
+
+def run_multiple_trajectories(sim_params, ntrajectories=100, time_horizon=150):
+    sim = StochasticSimulation(sim_params)
+    dfs = []
+    for _ in range(ntrajectories):
+        dfs.append(sim.run_new_trajectory(time_horizon))
+    return dfs
+
+
 def simulate(args):
 
     scenarios = create_scenario_dict(args)
@@ -391,14 +395,6 @@ def old_simulate(args):
         fig_dir = args.fig_dir
     plot_from_folder(sim_main_dir, fig_dir)
     print("Saved plots to directory {}".format(fig_dir))
-
-
-def run_multiple_trajectories(sim_params, ntrajectories=100, time_horizon=150):
-    sim = StochasticSimulation(sim_params)
-    dfs = []
-    for _ in range(ntrajectories):
-        dfs.append(sim.run_new_trajectory(time_horizon))
-    return dfs
 
 
 #################################

@@ -1,0 +1,176 @@
+severity_prevalence:
+
+  prob_severity_given_age:
+    agegroup1: [0.17, 0.816, 0.011, 0.003]
+    agegroup2: [0.52, 0.472, 0.006, 0.002]
+    agegroup3: [0.31, 0.659, 0.022, 0.009]
+    agegroup4: [0.13, 0.806, 0.047, 0.017]
+    agegroup5: [0.13, 0.806, 0.047, 0.017]
+
+  prob_infection_by_age: [0.018, 0.022, 0.029, 0.042, 0.042]
+
+  # taken from community - should be overwritten for each group
+  age_distribution: [0.237, 0.478, 0.193, 0.046, 0.047]
+
+interaction_matrix: [[12.5,  4,     0.1,   0.1,   1,     0.05,  0.05, 0.1],
+   [3.41,  8,     0.1,   0.1,   1,     0.05,  0.05, 0.2],
+   [0.19,  0.22,  4,     0.1,   1.2,   0.05,  0.2,  1.8],
+   [0.14,  0.17,  0.07,  9,     1,    0.05,   0.05, 0.2],
+   [1.92,  2.26,  1.22,  1.37,  1,     0.15,  0.3,  1.56],
+   [0.18,  0.21,  0.1,   0.13,  0.28,  1.8,   0.2,  1.56],
+   [0.07,  0.09,  0.15,  0.05,  0.23,  0.08,  1.8,  1.56],
+   [0.011, 0.026, 0.106, 0.016, 0.091, 0.048, 0.12, 3.5]]
+
+group_names:
+  - 'UG (campus)'
+  - 'UG (off campus)'
+  - 'GS (research)'
+  - 'GS (other)'
+  - 'Faculty/Staff (student facing)'
+  - 'Faculty/Staff (non student facing)'
+  - 'Faculty/Staff (off campus)'
+  - 'Ithaca Community'
+
+
+
+# default base parameters - some are overidden in group-specific definitions
+scenario_defaults:
+
+  _scenario_name: Nominal Parameters
+
+  population_size: 34310
+
+  initial_ID_prevalence: 0.0009
+
+  asymptomatic_pct_mult: 1
+
+  # for each of the following states we have: (mean_time_S, max_time_S)
+  # the first is used as a distribution parameter, so # of days in that
+  # state is Poisson(mean_time_S).  The second is used as a maximum-value,
+  # (used so that we have finite state-variables), so that the true
+  # number of days in a state is min(Poisson(mean_time_S), max_time_S)
+
+  ID_time_params: [3,8]
+
+  # applies to symptomatic & asymptomatic
+  Sy_time_params: [12, 20]
+
+  E_time_params: [2,7]
+
+  # parameters governing disease transmission/progression
+  exposed_infection_p: 0.017
+  expected_contacts_per_day: 8.3
+
+  daily_outside_infection_p: 0.00015244
+
+  # parameters governing self-reporting behaviour
+  asymptomatic_daily_self_report_p: 0
+  symptomatic_daily_self_report_p: 0.18
+
+  # parameters governing rate at which people leave quarantine/isolation
+  daily_leave_QI_p: 0.05
+  daily_leave_QS_p: 0.3
+
+  # contact-trace parameters
+  perform_contact_tracing: True
+  contact_tracing_delay: 1
+  cases_isolated_per_contact: 0.92
+  cases_quarantined_per_contact: 6.08
+
+  # specify that this config does not use asymptomatic testing
+  use_asymptomatic_testing: True
+
+  # what fraction of positive cases from testing go through contact-tracing
+  contact_trace_testing_frac: 0.5
+
+  days_between_tests: 1
+
+  test_population_fraction: 0.2
+
+  # test_protocol_QFNR: 0.46
+  test_protocol_QFNR: 0.10
+  test_protocol_QFPR: 0.001
+
+
+groups:
+  undergraduates_dorm:
+    _scenario_name: Undergrad (Dorm) Parameters
+
+    population_size: 6931                     # sum from BY's dorm sheet
+    expected_contacts_per_day: 10
+    daily_outside_infection_p: 0.000012
+    test_population_fraction: 0.07142857143
+    initial_ID_prevalence: 0.002939793039
+    arrival_testing_proportion: 1
+    age_distribution: [0, 1, 0, 0, 0]
+
+  undergraduates_off_campus:
+    _scenario_name: Undergrad (off campus) Parameters
+
+    population_size: 24254
+    expected_contacts_per_day: 7.2
+    daily_outside_infection_p: 0.000012
+    test_population_fraction: 0.002945022323      # 500 samples from 24254 students every 7
+    initial_ID_prevalence: 0.002939793039
+    age_distribution: [0, 1, 0, 0, 0]
+
+  grad_research:
+    _scenario_name: Grad student research Parameters
+
+    population_size: 13012
+    expected_contacts_per_day: 4
+    daily_outside_infection_p: 0.000012
+    test_population_fraction: 0.002987018418
+    initial_ID_prevalence: 0.03297328789
+    age_distribution: [0, 1, 0, 0, 0]
+
+  grad_teaching:
+    _scenario_name: Grad student other Parameters
+
+    population_size: 1120
+    expected_contacts_per_day: 7.2
+    daily_outside_infection_p: 0.000012
+    test_population_fraction: 0.002987018418
+    initial_ID_prevalence: 0.03297328789
+    age_distribution: [0, 1, 0, 0, 0]
+
+  fac_staff_student_facing:
+    _scenario_name: Faculty Staff student facing
+
+    population_size: 1698
+    expected_contacts_per_day: 2
+    daily_outside_infection_p: 0.000012
+    test_population_fraction: 0.002987018418
+    initial_ID_prevalence: 0.03297328789
+    age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
+
+  fac_staff_non_student_facing:
+    _scenario_name: Faculty Staff non-student facing
+
+    population_size: 8083
+    expected_contacts_per_day: 3
+    daily_outside_infection_p: 0.000012
+    test_population_fraction: 0.002987018418
+    initial_ID_prevalence: 0.03297328789
+    age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
+
+  fac_staff_WFH:
+    _scenario_name: Faculty Staff WFH
+
+    population_size: 8084
+    expected_contacts_per_day: 1
+    daily_outside_infection_p: 0.000012
+    test_population_fraction: 0.0
+    initial_ID_prevalence: 0.03297328789
+    age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
+
+
+  community:
+    _scenario_name: Madison Community Parameters
+
+    population_size: 258054
+    expected_contacts_per_day: 3.5
+    daily_outside_infection_p: 0.000012
+    test_population_fraction: 0.0
+    initial_ID_prevalence: 0.03297328789
+    age_distribution: [0.237, 0.478, 0.193, 0.046, 0.047]
