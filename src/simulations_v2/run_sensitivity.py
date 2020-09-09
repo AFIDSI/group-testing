@@ -162,10 +162,31 @@ def create_directories(args):
 def get_client():
     if socket.gethostname() == 'submit3.chtc.wisc.edu':
         # CHTC execution
+        from dask.distributed import Worker, WorkerPlugin
         from dask_chtc import CHTCCluster
+        from typing import List
+
+        # method to import libraries to workers - from https://github.com/dask/distributed/issues/1200#issuecomment-653495399
+        class DependencyInstaller(WorkerPlugin):
+            def __init__(self, dependencies: List[str]):
+                self._depencendies = " ".join(f"'{dep}'" for dep in dependencies)
+
+            def setup(self, _worker: Worker):
+                os.system(f"pip install {self._depencendies}")
+
+        dependency_installer = DependencyInstaller([
+            "scipy",
+            "functools",
+            "numpy",
+            "pandas"
+        ])
+
         cluster = CHTCCluster(job_extra={"accounting_group": "COVID19_AFIDSI"})
         cluster.adapt(minimum=10, maximum=20)
         client = Client(cluster)
+
+        # install packages to client
+        client.register_worker_plugin(dependency_installer)
         client.upload_file('analysis_helpers.py')
         client.upload_file('stochastic_simulation.py')
     else:
@@ -297,7 +318,6 @@ import pandas as pd
 from math import ceil
 from scipy.stats import poisson
 import functools
-import pdb
 
 
 class StochasticSimulation:
