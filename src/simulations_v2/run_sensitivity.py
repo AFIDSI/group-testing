@@ -217,14 +217,16 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
 
                 dill.dump(sim_params, open("{}/sim_params.dill".format(sim_sub_dir), "wb"))
 
-                dfs = run_multiple_trajectories(sim_params, ntrajectories, time_horizon)
+                # dfs = run_multiple_trajectories(sim_params, ntrajectories, time_horizon)
 
                 # start new process
-                fn_args = (sim_sub_dir, sim_params, ntrajectories, time_horizon, dfs)
+                for _ in range(ntrajectories):
+                    sim = StochasticSimulation(sim_params)
+                    results.append(client.submit(sim.run_new_trajectory(time_horizon)))
 
                 # proc = multiprocessing.Process(target=run_background_sim, args=fn_args)
                 # results.append(pool.apply_async(run_background_sim, fn_args))
-                results.append(client.submit(run_background_sim, fn_args))
+                # results.append(client.submit(run_background_sim, input_tuple))
 
                 # keep track of how many jobs were submitted
                 job_counter += 1
@@ -238,14 +240,13 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
 
         for result in results:
 
-            # pool approach
-            # result.get()
-
             # dask approach
             output = result.result()
 
             output_dir = output[0]
             dfs = output[1]
+
+            pdb.set_trace()
 
             for idx, df in enumerate(dfs):
                 df_file_name = "{}/{}.csv".format(output_dir, idx)
@@ -270,27 +271,6 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
         print("Saved plots to directory {}".format(fig_dir))
 
 
-# def run_background_sim(output_dir, sim_params, ntrajectories=150, time_horizon=112):
-def run_background_sim(input_tuple):
-
-    output_dir = input_tuple[0]
-    sim_params = input_tuple[1]
-    ntrajectories = input_tuple[2]
-    time_horizon = input_tuple[3]
-
-    dfs = run_multiple_trajectories(sim_params, ntrajectories, time_horizon)
-
-    return output_dir, dfs
-
-
-def run_multiple_trajectories(sim_params, ntrajectories=100, time_horizon=150):
-    sim = StochasticSimulation(sim_params)
-    dfs = []
-    for _ in range(ntrajectories):
-        dfs.append(sim.run_new_trajectory(time_horizon))
-    return dfs
-
-
 def simulate(args):
 
     scenarios = create_scenario_dict(args)
@@ -300,101 +280,6 @@ def simulate(args):
     sim_main_dir = create_directories(args)
 
     run_simulations(scenarios, int(args.ntrajectories), args.time_horizon, param_values, sim_main_dir, args)
-
-
-def old_simulate(args):
-
-    if len(args.values) != len(args.param_to_vary):
-        raise(Exception("Number of parameters specified doesn't match number of value ranges specified"))
-
-    scenarios = {}
-    for scenario_file in args.scenarios:
-        scn_name, scn_params = load_params(scenario_file)
-        scenarios[scn_name] = scn_params
-
-    params_to_vary = args.param_to_vary
-    param_values = {}
-    for param_to_vary, values in zip(params_to_vary, args.values):
-        if param_to_vary not in VALID_PARAMS_TO_VARY:
-            print("Received invalid parameter to vary: {}".format(param_to_vary))
-            exit()
-        if param_to_vary == 'contact_tracing_delay':
-            param_values[param_to_vary] = [int(v) for v in values]
-        else:
-            param_values[param_to_vary] = [float(v) for v in values]
-
-    if len(params_to_vary) == 1:
-        sim_id = "{timestamp}-{param_to_vary}".format(
-                    timestamp=str(time.time()),
-                    param_to_vary = params_to_vary[0])
-    else:
-        sim_id = "{timestamp}-multiparam".format(
-                    timestamp=str(time.time()).split('.')[0])
-
-    print("Using Simulation ID: {}".format(sim_id))
-
-    basedir = args.outputdir
-    ntrajectories = int(args.ntrajectories)
-    time_horizon = int(args.time_horizon)
-    verbose = args.verbose
-
-    if not os.path.isdir(basedir):
-        print("Directory {} does not exist. Please create it.".format(basedir))
-        exit()
-
-    sim_main_dir = basedir + "/" + str(sim_id)
-    os.mkdir(sim_main_dir)
-    print("Output directory {} created".format(sim_main_dir))
-
-    jobs = []
-    scn_dirs = {}
-    for scn_name, scn_params in scenarios.items():
-        sim_scn_dir = sim_main_dir + "/" + scn_name
-        os.mkdir(sim_scn_dir)
-        scn_dirs[scn_name] = sim_scn_dir
-        dill.dump(scn_params, open("{}/scn_params.dill".format(sim_scn_dir), "wb"))
-        job_counter = 0
-        if verbose:
-            print("Output scenario-directory {} created".format(sim_sub_dir))
-
-        for param_specifier, sim_params in iter_param_variations(scn_params, params_to_vary, param_values):
-            # create the relevant subdirectory
-            sim_sub_dir = "{}/simulation-{}".format(sim_scn_dir, job_counter)
-            job_counter += 1
-            os.mkdir(sim_sub_dir)
-            with open('{}/param_specifier.yaml'.format(sim_sub_dir), 'w') as outfile:
-                yaml.dump(param_specifier, outfile, default_flow_style=False)
-            if verbose: 
-                print("Created directory {} to save output".format(sim_sub_dir))
-
-            dill.dump(sim_params, open("{}/sim_params.dill".format(sim_sub_dir), "wb"))
-            # start new process
-            fn_args = (sim_sub_dir, sim_params, ntrajectories, time_horizon)
-            #run_background_sim(*fn_args)
-            proc = multiprocessing.Process(target = run_background_sim, args=fn_args)
-            #proc.daemon = True
-            jobs.append(proc)
-            proc.start()
-            if verbose:
-                print("starting process for {} value {}".format(param_to_vary, param_val))
-
-    print("Running simulations for {} scenarios and {} varying parameters across {} separate processes.".format(len(scenarios), len(params_to_vary), len(jobs)))
-    print("Results being saved in output directory {}.".format(sim_main_dir))
-    print("Waiting for simulations to finish...")
-    for p in jobs:
-        p.join()
-
-    if len(params_to_vary) > 1:
-        print("Simulations done. Not auto-generating plots because > 1 parameter was varied")
-        print("Exiting now...")
-        exit()
-    print("Simulations done. Generating plots now...")
-    if args.fig_dir == None:
-        fig_dir = sim_main_dir
-    else:
-        fig_dir = args.fig_dir
-    plot_from_folder(sim_main_dir, fig_dir)
-    print("Saved plots to directory {}".format(fig_dir))
 
 
 #################################
@@ -576,7 +461,6 @@ class StochasticSimulation:
         # instantiate state variables and relevant simulation variables
         self.reset_initial_state()
 
-
     def reset_initial_state(self):
         if self.init_ID_prevalence:
             if self.init_ID_prevalence_stochastic:
@@ -657,11 +541,11 @@ class StochasticSimulation:
         self._shift_contact_queue()
 
         # compute how many cases we find
-        #total_contacts = int(resolve_today_QI * self.contact_trace_infectious_window \
+        # total_contacts = int(resolve_today_QI * self.contact_trace_infectious_window \
         #                                * self.daily_contacts_lambda)
-        #total_contacts_traced = np.random.binomial(total_contacts, self.contact_tracing_c)
-        #total_cases_isolated = np.random.binomial(total_contacts_traced, self.exposed_infection_p)
-        #total_contacts_quarantined = min(self.S, total_contacts_traced - total_cases_isolated)
+        # total_contacts_traced = np.random.binomial(total_contacts, self.contact_tracing_c)
+        # total_cases_isolated = np.random.binomial(total_contacts_traced, self.exposed_infection_p)
+        # total_contacts_quarantined = min(self.S, total_contacts_traced - total_cases_isolated)
 
         total_contacts_quarantined = min(self.S, int(self.cases_quarantined_per_contact * resolve_today_QI))
         # add susceptible people to the quarantine state
@@ -852,7 +736,6 @@ class StochasticSimulation:
 
         return new_QI
 
-
     def isolate_self_reports(self):
         mild_self_reports = np.random.binomial(self.SyID_mild, self.mild_self_report_p)
         self.SyID_mild = self.SyID_mild - mild_self_reports
@@ -871,8 +754,6 @@ class StochasticSimulation:
         self.new_QI_from_self_reports = new_QI
         return new_QI
 
-
-
     def step(self):
         """ simulate a single day in the progression of the disease """
 
@@ -883,7 +764,6 @@ class StochasticSimulation:
             self.last_test_day = self.current_day
             new_QI += self.run_test()
             new_contact_traces += int(self.contact_trace_testing_frac * new_QI)
-
 
         # resolve symptomatic self-reporting
         new_self_reports = self.isolate_self_reports()
@@ -913,11 +793,11 @@ class StochasticSimulation:
         else:
             poisson_param = free_infectious * self.daily_contacts_lambda * free_susceptible / free_tot
         n_contacts = np.random.poisson(poisson_param)
-        #n_contacts = int(free_infectious * free_susceptible / free_tot * np.random.geometric(1/self.daily_contacts_lambda))
+        # n_contacts = int(free_infectious * free_susceptible / free_tot * np.random.geometric(1/self.daily_contacts_lambda))
 
         # sample number of new E cases from 'inside' contacts
         new_E_from_inside = min(np.random.binomial(n_contacts, self.exposed_infection_p), self.S)
-        
+
         # sample number of new E cases from 'outside' infection
         new_E_from_outside = np.random.binomial(self.S - new_E_from_inside, self.daily_outside_infection_p)
         self.cumulative_outside_infections += new_E_from_outside
@@ -936,7 +816,6 @@ class StochasticSimulation:
         new_ID = self.pre_ID[0] + new_pre_ID_times[0]
         self._shift_pre_ID_queue()
         self.pre_ID = self.pre_ID + new_pre_ID_times[1:]
-
 
         # sample times of new ID cases / update ID queue/ record new SyID cases
         new_ID_times = self.sample_ID_times(new_ID)
@@ -959,7 +838,6 @@ class StochasticSimulation:
         new_R_from_severe = self.SyID_severe[0] + new_SyID_severe_times[0]
         self._shift_SyID_severe_queue()
         self.SyID_severe = self.SyID_severe + new_SyID_severe_times[1:]
-
 
         # sample number of people who leave quarantine-I/ resolve new R cases
         leave_QI = self.sample_QI_exit_count(self.QI)
@@ -984,9 +862,8 @@ class StochasticSimulation:
 
         self.current_day += 1
 
-
-    ## add new_E people to the infections queue from the S queue.
-    ## this function is written to support the companion multi-group simulation
+    # add new_E people to the infections queue from the S queue.
+    # this function is written to support the companion multi-group simulation
     def add_new_infections(self, new_E):
 
         new_E = min(self.S, new_E)
@@ -1003,7 +880,6 @@ class StochasticSimulation:
         new_pre_ID_times = self.sample_pre_ID_times(new_pre_ID)
         new_ID =  new_pre_ID_times[0]
         self.pre_ID = self.pre_ID + new_pre_ID_times[1:]
-
 
         # sample times of new ID cases / update ID queue/ record new SyID cases
         new_ID_times = self.sample_ID_times(new_ID)
@@ -1028,7 +904,6 @@ class StochasticSimulation:
         self.R_mild += new_R_from_mild
         self.R_severe += new_R_from_severe
 
-
     def _append_sim_df(self):
         self.generate_cumulative_stats()
         data = self.get_current_state_vector()
@@ -1044,7 +919,6 @@ class StochasticSimulation:
             raise(Exception("population has shrunk"))
         if np.sum(data < 0) > 0:
             raise(Exception("negative category size"))
-
 
     def _shift_E_queue(self):
         idx = 0
@@ -1081,7 +955,6 @@ class StochasticSimulation:
             idx += 1
         self.SyID_severe[self.max_time_SyID_severe - 1] = 0
 
-
     def get_current_state_vector(self):
         return np.concatenate([
             [self.S], [self.QS], [self.QI], [self.R],
@@ -1097,7 +970,6 @@ class StochasticSimulation:
                 ['SyID_mild_{}'.format(x) for x in range(self.max_time_SyID_mild)] + \
                 ['SyID_severe_{}'.format(x) for x in range(self.max_time_SyID_severe)] + \
                 ['cumulative_mild', 'cumulative_severe', 'cumulative_outside_infections']
-
 
     def generate_cumulative_stats(self):
         self.cumulative_mild = self.QI_mild + sum(self.SyID_mild) + self.R_mild
@@ -1115,7 +987,6 @@ class StochasticSimulation:
                 self.sim_df['severity_'+str(i)] = self.sim_df['cumulative_mild'] * (self.severity_prevalence[i] / self.mild_symptoms_p)
             else:
                 self.sim_df['severity_'+str(i)] = self.sim_df['cumulative_severe'] * (self.severity_prevalence[i] / (1 - self.mild_symptoms_p))
-
 
 
 #################################
@@ -1150,4 +1021,3 @@ if __name__ == "__main__":
 
     # multithreading.pool method
     simulate(args)
-
