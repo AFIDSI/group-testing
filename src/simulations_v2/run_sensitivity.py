@@ -222,7 +222,7 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
                 # start new process
                 for _ in range(ntrajectories):
                     sim = StochasticSimulation(sim_params)
-                    results.append(client.submit(sim.run_new_trajectory(time_horizon)))
+                    results.append(client.submit(sim.run_new_trajectory, time_horizon))
 
                 # proc = multiprocessing.Process(target=run_background_sim, args=fn_args)
                 # results.append(pool.apply_async(run_background_sim, fn_args))
