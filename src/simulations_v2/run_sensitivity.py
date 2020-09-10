@@ -183,7 +183,7 @@ def get_client():
         ])
         '''
 
-        cluster = CHTCCluster(worker_image='blue442/group-modeling-chtc:0.1', job_extra={"accounting_group": "COVID19_AFIDSI"})
+        cluster = CHTCCluster(worker_image="blue442/group-modeling-chtc:0.1", job_extra={"accounting_group": "COVID19_AFIDSI"})
         cluster.adapt(minimum=10, maximum=20)
         client = Client(cluster)
 
@@ -267,10 +267,8 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
             # dask approach
             output = result.result()
 
-            output_dir = output[0]
-            dfs = output[1]
-
-            pdb.set_trace()
+            output_dir = sim_sub_dir 
+            dfs = output
 
             for idx, df in enumerate(dfs):
                 df_file_name = "{}/{}.csv".format(output_dir, idx)
@@ -320,11 +318,11 @@ import numpy as np
 import pandas as pd
 from math import ceil
 from scipy.stats import poisson
-import functools
+# import functools
 
 
 class StochasticSimulation:
-    @functools.lru_cache(maxsize=128)
+    # @functools.lru_cache(maxsize=128)
     def poisson_pmf(self, max_time, mean_time):
         pmf = list()
         for i in range(max_time):
