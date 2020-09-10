@@ -166,6 +166,7 @@ def get_client():
         from dask_chtc import CHTCCluster
         from typing import List
 
+        '''
         # method to import libraries to workers - from https://github.com/dask/distributed/issues/1200#issuecomment-653495399
         class DependencyInstaller(WorkerPlugin):
             def __init__(self, dependencies: List[str]):
@@ -180,15 +181,17 @@ def get_client():
             "numpy",
             "pandas"
         ])
+        '''
 
-        cluster = CHTCCluster(job_extra={"accounting_group": "COVID19_AFIDSI"})
+        cluster = CHTCCluster(worker_image='blue442/group-modeling-chtc:0.1', job_extra={"accounting_group": "COVID19_AFIDSI"})
         cluster.adapt(minimum=10, maximum=20)
         client = Client(cluster)
 
         # install packages to client
-        client.register_worker_plugin(dependency_installer)
-        client.upload_file('analysis_helpers.py')
-        client.upload_file('stochastic_simulation.py')
+        # client.register_worker_plugin(dependency_installer)
+        # Does this work???
+        # client.upload_file('analysis_helpers.py')
+        # client.upload_file('stochastic_simulation.py')
     else:
         # local execution
         cluster = LocalCluster(multiprocessing.cpu_count() - 1)
