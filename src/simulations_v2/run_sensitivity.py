@@ -6,6 +6,8 @@ import time
 import pdb
 import os
 import multiprocessing
+import sqlalchemy
+import uuid
 
 import dill
 import argparse
@@ -16,6 +18,7 @@ from dask.distributed import Client, LocalCluster
 
 # from analysis_helpers import run_multiple_trajectories
 # from stochastic_simulation import StochasticSimulation
+import db_config
 
 BASE_DIRECTORY = os.path.abspath(os.path.join('')) + "/sim_output/"
 
@@ -215,42 +218,28 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
     # collect results in array (just so we know when everything is done)
     results = []
 
+    params_dict = scenarios.copy()
+
     with get_client() as client:
 
         for scn_name, scn_params in scenarios.items():
 
-            # create directories for each scenario name
-            sim_scn_dir = sim_main_dir + "/" + scn_name
-            os.mkdir(sim_scn_dir)
-
-            # dump params into a dill file
-            dill.dump(scn_params, open("{}/scn_params.dill".format(sim_scn_dir), "wb"))
-
             for param_specifier, sim_params in iter_param_variations(scn_params, params_to_vary, param_values):
 
-                # create the relevant subdirectory
-                sim_sub_dir = "{}/simulation-{}".format(sim_scn_dir, job_counter)
-                os.mkdir(sim_sub_dir)
-
-                # job_counter += 1
-
-                with open('{}/param_specifier.yaml'.format(sim_sub_dir), 'w') as outfile:
-                    yaml.dump(param_specifier, outfile, default_flow_style=False)
-                if args.verbose:
-                    print("Created directory {} to save output".format(sim_sub_dir))
-
-                dill.dump(sim_params, open("{}/sim_params.dill".format(sim_sub_dir), "wb"))
-
                 # dfs = run_multiple_trajectories(sim_params, ntrajectories, time_horizon)
-
+                # pdb.set_trace()
                 # start new process
-                for _ in range(ntrajectories):
-                    sim = StochasticSimulation(sim_params)
-                    results.append(client.submit(sim.run_new_trajectory, time_horizon))
+                if socket.gethostname() == 'submit3.chtc.wisc.edu':
 
-                # proc = multiprocessing.Process(target=run_background_sim, args=fn_args)
-                # results.append(pool.apply_async(run_background_sim, fn_args))
-                # results.append(client.submit(run_background_sim, input_tuple))
+                    # DataFrame(sim_params).to_sql()
+                    for _ in range(ntrajectories):
+                        sim = CHTCStochasticSimulation(sim_params)
+                        results.append(client.submit(sim.run_new_trajectory, time_horizon))
+                else:
+                    for _ in range(ntrajectories):
+                        sim = CHTCStochasticSimulation(sim_params)
+                        # pdb.set_trace()
+                        results.append(client.submit(sim.run_new_trajectory, time_horizon))
 
                 # keep track of how many jobs were submitted
                 job_counter += 1
@@ -267,33 +256,33 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
             # dask approach
             output = result.result()
 
-            output_dir = output[0]
-            dfs = output[1]
+            # if socket.gethostname() == 'submit3.chtc.wisc.edu':
+            engine = sqlalchemy.create_engine(db_config.config_string)
+            sim_id = uuid.uuid4()
+            output[0]['sim_id'] = sim_id
+            output[0].to_sql('params', con=engine, if_exists='append', method='multi')
 
-            pdb.set_trace()
+            output[1]['sim_id'] = sim_id
+            output[1].to_sql('results', con=engine, if_exists='append', method='multi')
 
-            for idx, df in enumerate(dfs):
-                df_file_name = "{}/{}.csv".format(output_dir, idx)
-                df.to_csv(df_file_name)
+            """
+            else:
 
+                output_dir = output[0]
+                dfs = output[1]
+
+                pdb.set_trace()
+
+                for idx, df in enumerate(dfs):
+                    df_file_name = "{}/{}.csv".format(output_dir, idx)
+                    df.to_csv(df_file_name)
+            """
             get_counter += 1
 
             print("{}: {} of {} simulations complete!".format(time.ctime(), get_counter, job_counter))
 
-        # wrap up
-        if len(params_to_vary) > 1:
-            print("Simulations done. Not auto-generating plots because > 1 parameter was varied")
-            print("Exiting now...")
-            exit()
-
-        print("Simulations done. Generating plots now...")
-        if args.fig_dir is None:
-            fig_dir = sim_main_dir
-        else:
-            fig_dir = args.fig_dir
-        plot_from_folder(sim_main_dir, fig_dir)
-        print("Saved plots to directory {}".format(fig_dir))
-
+        print("Simulations complete.")
+        exit()
 
 def simulate(args):
 
@@ -304,6 +293,15 @@ def simulate(args):
     sim_main_dir = create_directories(args)
 
     run_simulations(scenarios, int(args.ntrajectories), args.time_horizon, param_values, sim_main_dir, args)
+
+
+def params_to_database(sim_params):
+    # add run date to params
+    from datetime import date
+    today = date.today()
+    params_df = pd.DataFrame(sim_params)
+    params_df['simlulation_date'] = today.strftime("%m/%d/%y")
+    params_df.to_sql('params', con='engine', if_exists='append', method='multi')
 
 
 #################################
@@ -323,7 +321,7 @@ from scipy.stats import poisson
 import functools
 
 
-class StochasticSimulation:
+class CHTCStochasticSimulation:
     @functools.lru_cache(maxsize=128)
     def poisson_pmf(self, max_time, mean_time):
         pmf = list()
@@ -332,16 +330,19 @@ class StochasticSimulation:
         pmf.append(1-np.sum(pmf))
         return np.array(pmf)
 
-    def binomial_exit_function(self, p):
-        return (lambda n: np.random.binomial(n, p))
-
-    def poisson_waiting_function(self, max_time, mean_time):
-        return (lambda n: np.random.multinomial(n, self.poisson_pmf(max_time, mean_time)))
+    def binomial_exit_function(self, n, p):
+        # return (lambda n: np.random.binomial(n, p))
+        return np.random.binomial(n, p)
 
     def poisson_waiting_function2(self, n, max_time, mean_time):
         return np.random.multinomial(n, self.poisson_pmf(max_time, mean_time))
 
+    def multinomial_sample(self, n, max_time, mean_time):
+        return np.random.multinomial(n, self.poisson_pmf(max_time, mean_time))
+
     def __init__(self, params):
+
+        self.params = params
 
         # Meta-parameters governing the maximum number of days an
         # individual spends in each 'infection' state
@@ -354,6 +355,10 @@ class StochasticSimulation:
         self.max_time_SyID_mild = params['max_time_SyID_mild']
         self.max_time_SyID_severe = params['max_time_SyID_severe']
 
+        self.mean_time_ID = params['mean_time_ID']
+        self.mean_time_SyID_mild = params['mean_time_SyID_mild']
+        self.mean_time_SyID_severe = params['mean_time_SyID_severe']
+
         # parameters governing distribution over time spent in each
         # of these infection states:
         # Assumptions about the sample_X_times variables:
@@ -365,50 +370,18 @@ class StochasticSimulation:
         # We assume that sum(times) == n
 
         if 'mean_time_E' in params:
-            mean_time = params['mean_time_E']
-            self.sample_E_times = self.poisson_waiting_function(max_time=self.max_time_E, mean_time=mean_time)
+            self.mean_time_E = params['mean_time_E']
         else:
-            # self.sample_E_times = params['exposed_time_function']
-            self.sample_E_times = self.poisson_waiting_function(max_time=params['max_time_exposed'], mean_time=params['mean_time_exposed'])
+            self.mean_time_E = params['mean_time_exposed']
 
         if 'mean_time_pre_ID' in params:
-            mean_time = params['mean_time_pre_ID']
-            self.sample_pre_ID_times = self.poisson_waiting_function(max_time=self.max_time_pre_ID, mean_time=mean_time)
+            self.mean_time_pre_ID = params['mean_time_pre_ID']
         else:
-            # self.sample_pre_ID_times = params['pre_ID_time_function']
-            self.sample_pre_ID_times = self.poisson_waiting_function(max_time=4, mean_time=0)  # copied over from load_params.py
-
-        if 'mean_time_ID' in params:
-            mean_time = params['mean_time_ID']
-            self.sample_ID_times = self.poisson_waiting_function(max_time=self.max_time_ID, mean_time=mean_time)
-        else:
-            # self.sample_ID_times = params['ID_time_function']
-            self.sample_ID_times = self.poisson_waiting_function(params['max_time_ID'], params['mean_time_ID'])
-
-        if 'mean_time_SyID_mild' in params:
-            mean_time = params['mean_time_SyID_mild']
-            self.sample_SyID_mild_times = self.poisson_waiting_function(max_time=self.max_time_SyID_mild, mean_time = mean_time)
-        else:
-            # self.sample_SyID_mild_times = params['SyID_mild_time_function']
-            self.sample_SyID_mild_times = self.poisson_waiting_function(max_time=params['max_time_syID_mild'], mean_time=params['mean_time_syID_mild'])
-
-        if 'mean_time_SyID_severe' in params:
-            mean_time = params['mean_time_SyID_severe']
-            self.sample_SyID_severe_times = self.poisson_waiting_function(max_time=self.max_time_SyID_severe, mean_time=mean_time)
-        else:
-            # self.sample_SyID_severe_times = params['SyID_severe_time_function']
-            self.sample_SyID_severe_times = self.poisson_waiting_function(max_time=params['max_time_syID_mild'], mean_time=params['mean_time_syID_mild'])
-
-        # assumption: sample_QI_exit_count(n) returns a number m <= n
-        #             indicating the number of people in the state QI
-        #             who exit quarantine, given than n people initially
-        #             start there
-        # self.sample_QI_exit_count = params['sample_QI_exit_function']
-        # self.sample_QS_exit_count = params['sample_QS_exit_function']
+            self.mean_time_pre_ID = 0
 
         # update so reference in params doesn't include a lambda -sw
-        self.sample_QI_exit_count = self.binomial_exit_function(params['sample_QI_exit_function_param'])
-        self.sample_QS_exit_count = self.binomial_exit_function(params['sample_QS_exit_function_param'])
+        self.sample_QI_exit_count_p = params['sample_QI_exit_function_param']
+        self.sample_QS_exit_count_p = params['sample_QS_exit_function_param']
 
         # parameters governing distribution over transition out of
         # each infection state
@@ -497,22 +470,27 @@ class StochasticSimulation:
 
         # all of the following state vectors have the following convention:
         # state[k] is how many people have k days left to go.
-        E_sample = self.sample_E_times(self.init_E_count)
+        # E_sample = self.sample_E_times(self.init_E_count)
+        E_sample = self.multinomial_sample(self.init_E_count, self.max_time_E, self.mean_time_E)
         self.E = E_sample[1:]
 
-        pre_ID_sample = self.sample_pre_ID_times(self.init_pre_ID_count + E_sample[0])
+        # pre_ID_sample = self.sample_pre_ID_times(self.init_pre_ID_count + E_sample[0])
+        pre_ID_sample = self.multinomial_sample(self.init_pre_ID_count + E_sample[0], self.max_time_pre_ID, self.mean_time_pre_ID)
         self.pre_ID = pre_ID_sample[1:]
 
-        ID_sample = self.sample_ID_times(init_ID_count + pre_ID_sample[0])
+        # ID_sample = self.sample_ID_times(init_ID_count + pre_ID_sample[0])
+        ID_sample = self.multinomial_sample(init_ID_count + pre_ID_sample[0], self.max_time_ID, self.mean_time_ID)
         self.ID = ID_sample[1:]
 
         additional_mild = np.random.binomial(ID_sample[0], self.mild_symptoms_p)
         additional_severe = ID_sample[0] - additional_mild
 
-        SyID_mild_sample = self.sample_SyID_mild_times(self.init_SyID_mild_count + additional_mild)
+        # SyID_mild_sample = self.sample_SyID_mild_times(self.init_SyID_mild_count + additional_mild)
+        SyID_mild_sample = self.multinomial_sample(self.init_SyID_mild_count + additional_mild, self.max_time_SyID_mild, self.mean_time_SyID_mild)
         self.SyID_mild = SyID_mild_sample[1:]
 
-        SyID_severe_sample = self.sample_SyID_severe_times(self.init_SyID_severe_count + additional_severe)
+        # SyID_severe_sample = self.sample_SyID_severe_times(self.init_SyID_severe_count + additional_severe)
+        SyID_severe_sample = self.multinomial_sample(self.init_SyID_severe_count + additional_severe, self.max_time_SyID_severe, self.mean_time_SyID_severe)
         self.SyID_severe = SyID_severe_sample[1:]
 
         # contact_trace_queue[k] are the number of quarantined individuals who have k
@@ -552,7 +530,7 @@ class StochasticSimulation:
                 # Severe symptoms
                 self.sim_df['severity_'+str(i)] = self.sim_df['cumulative_severe'] * (self.severity_prevalence[i] / (1 - self.mild_symptoms_p))
 
-        return self.sim_df
+        return self.sim_df, self.params
 
     def step_contact_trace(self, new_QI):
         """ resolve contact traces at the front of the queue and add new QIs to the back
@@ -829,19 +807,22 @@ class StochasticSimulation:
         self.S -= new_E
 
         # update E queue and record new pre-ID cases
-        new_E_times = self.sample_E_times(new_E)
+        # new_E_times = self.sample_E_times(new_E)
+        new_E_times = self.multinomial_sample(new_E, self.max_time_E, self.mean_time_E)
         new_pre_ID = self.E[0] + new_E_times[0]
         self._shift_E_queue()
         self.E = self.E + new_E_times[1:]
 
         # sample times of new pre-ID cases / update pre-ID queue/ record new ID cases
-        new_pre_ID_times = self.sample_pre_ID_times(new_pre_ID)
+        # new_pre_ID_times = self.sample_pre_ID_times(new_pre_ID)
+        new_pre_ID_times = self.multinomial_sample(new_pre_ID, self.max_time_pre_ID, self.mean_time_pre_ID)
         new_ID = self.pre_ID[0] + new_pre_ID_times[0]
         self._shift_pre_ID_queue()
         self.pre_ID = self.pre_ID + new_pre_ID_times[1:]
 
         # sample times of new ID cases / update ID queue/ record new SyID cases
-        new_ID_times = self.sample_ID_times(new_ID)
+        # new_ID_times = self.sample_ID_times(new_ID)
+        new_ID_times = self.multinomial_sample(new_ID, self.max_time_ID, self.mean_time_ID)
         new_SyID = self.ID[0] + new_ID_times[0]
         self._shift_ID_queue()
         self.ID = self.ID + new_ID_times[1:]
@@ -851,19 +832,22 @@ class StochasticSimulation:
         new_SyID_severe = new_SyID - new_SyID_mild
 
         # samples times of new SyID mild cases/ update mild queue/ record new R cases
-        new_SyID_mild_times = self.sample_SyID_mild_times(new_SyID_mild)
+        # new_SyID_mild_times = self.sample_SyID_mild_times(new_SyID_mild)
+        new_SyID_mild_times = self.multinomial_sample(new_SyID_mild, self.max_time_SyID_mild, self.mean_time_SyID_mild)
         new_R_from_mild = self.SyID_mild[0] + new_SyID_mild_times[0]
         self._shift_SyID_mild_queue()
         self.SyID_mild = self.SyID_mild + new_SyID_mild_times[1:]
 
         # same as above, but for the severe symptom queue
-        new_SyID_severe_times = self.sample_SyID_severe_times(new_SyID_severe)
+        # new_SyID_severe_times = self.sample_SyID_severe_times(new_SyID_severe)
+        new_SyID_severe_times = self.multinomial_sample(new_SyID_severe, self.max_time_SyID_severe, self.mean_time_SyID_severe)
         new_R_from_severe = self.SyID_severe[0] + new_SyID_severe_times[0]
         self._shift_SyID_severe_queue()
         self.SyID_severe = self.SyID_severe + new_SyID_severe_times[1:]
 
         # sample number of people who leave quarantine-I/ resolve new R cases
-        leave_QI = self.sample_QI_exit_count(self.QI)
+        # leave_QI = self.sample_QI_exit_count(self.QI)
+        leave_QI = self.binomial_exit_function(self.QI, self.sample_QI_exit_count_p)
         if leave_QI == 0:
             leave_QI_mild = 0
             leave_QI_severe = 0
@@ -877,7 +861,8 @@ class StochasticSimulation:
         self.R += leave_QI + new_R_from_mild + new_R_from_severe
         self.R_mild += leave_QI_mild + new_R_from_mild
         self.R_severe += leave_QI_severe + new_R_from_severe
-        leave_QS = self.sample_QS_exit_count(self.QS)
+        # leave_QS = self.sample_QS_exit_count(self.QS)
+        leave_QS = self.binomial_exit_function(self.QS, self.sample_QS_exit_count_p)
         self.QS -= leave_QS
         self.S += leave_QS
 
@@ -895,17 +880,20 @@ class StochasticSimulation:
 
         # in theory it is possible for someone to go from new_E to R in a single step,
         # so we have to pass through all the states...
-        new_E_times = self.sample_E_times(new_E)
+        # new_E_times = self.sample_E_times(new_E)
+        new_E_times = self.multinomial_sample(new_E, self.max_time_E, self.mean_time_E)
         new_pre_ID = new_E_times[0]
         self.E = self.E + new_E_times[1:]
 
         # sample times of new pre-ID cases / update pre-ID queue/ record new ID cases
-        new_pre_ID_times = self.sample_pre_ID_times(new_pre_ID)
-        new_ID =  new_pre_ID_times[0]
+        # new_pre_ID_times = self.sample_pre_ID_times(new_pre_ID)
+        new_pre_ID_times = self.multinomial_sample(new_pre_ID, self.max_time_pre_ID, self.mean_time_pre_ID)
+        new_ID = new_pre_ID_times[0]
         self.pre_ID = self.pre_ID + new_pre_ID_times[1:]
 
         # sample times of new ID cases / update ID queue/ record new SyID cases
-        new_ID_times = self.sample_ID_times(new_ID)
+        # new_ID_times = self.sample_ID_times(new_ID)
+        new_ID_times = self.multinomial_sample(new_ID, self.max_time_ID, self.mean_time_ID)
         new_SyID = new_ID_times[0]
         self.ID = self.ID + new_ID_times[1:]
 
@@ -914,12 +902,14 @@ class StochasticSimulation:
         new_SyID_severe = new_SyID - new_SyID_mild
 
         # samples times of new SyID mild cases/ update mild queue/ record new R cases
-        new_SyID_mild_times = self.sample_SyID_mild_times(new_SyID_mild)
+        # new_SyID_mild_times = self.sample_SyID_mild_times(new_SyID_mild)
+        new_SyID_mild_times = self.multinomial_sample(new_SyID_mild, self.max_time_SyID_mild, self.mean_time_SyID_mild)
         new_R_from_mild = new_SyID_mild_times[0]
         self.SyID_mild = self.SyID_mild + new_SyID_mild_times[1:]
 
         # same as above, but for the severe symptom queue
-        new_SyID_severe_times = self.sample_SyID_severe_times(new_SyID_severe)
+        # new_SyID_severe_times = self.sample_SyID_severe_times(new_SyID_severe)
+        new_SyID_severe_times = self.multinomial_sample(new_SyID_severe, self.max_time_SyID_severe, self.mean_time_SyID_severe)
         new_R_from_severe = new_SyID_severe_times[0]
         self.SyID_severe = self.SyID_severe + new_SyID_severe_times[1:]
 
