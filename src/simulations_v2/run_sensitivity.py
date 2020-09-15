@@ -260,10 +260,10 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
             engine = sqlalchemy.create_engine(db_config.config_string)
             sim_id = uuid.uuid4()
             output[0]['sim_id'] = sim_id
-            output[0].to_sql('params', con=engine, if_exists='append', method='multi')
+            output[0].to_sql('results', con=engine, if_exists='append', method='multi')
 
             output[1]['sim_id'] = sim_id
-            pd.DataFrame(output[1]).to_sql('results', con=engine, if_exists='append', method='multi')
+            pd.DataFrame(output[1]).to_sql('params', con=engine, if_exists='append', method='multi')
 
             """
             else:
