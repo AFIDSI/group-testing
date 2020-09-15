@@ -186,7 +186,7 @@ def get_client():
         ])
         '''
 
-        cluster = CHTCCluster(worker_image='blue442/group-modeling-chtc:0.1', job_extra={"accounting_group": "COVID19_AFIDSI"})
+        cluster = CHTCCluster(worker_image="blue442/group-modeling-chtc:0.1", job_extra={"accounting_group": "COVID19_AFIDSI"})
         cluster.adapt(minimum=10, maximum=20)
         client = Client(cluster)
 
@@ -284,6 +284,7 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
         print("Simulations complete.")
         exit()
 
+
 def simulate(args):
 
     scenarios = create_scenario_dict(args)
@@ -322,6 +323,7 @@ import functools
 
 
 class CHTCStochasticSimulation:
+
     @functools.lru_cache(maxsize=128)
     def poisson_pmf(self, max_time, mean_time):
         pmf = list()
