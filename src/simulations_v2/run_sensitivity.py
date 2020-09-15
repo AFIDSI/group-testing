@@ -319,12 +319,12 @@ import numpy as np
 import pandas as pd
 from math import ceil
 from scipy.stats import poisson
-import functools
+# import functools
 
 
 class CHTCStochasticSimulation:
 
-    @functools.lru_cache(maxsize=128)
+    # @functools.lru_cache(maxsize=128)
     def poisson_pmf(self, max_time, mean_time):
         pmf = list()
         for i in range(max_time):
