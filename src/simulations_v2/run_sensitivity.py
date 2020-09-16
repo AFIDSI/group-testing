@@ -263,7 +263,10 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
             output[0].to_sql('results', con=engine, if_exists='append', method='multi')
 
             output[1]['sim_id'] = sim_id
-            pd.DataFrame(output[1]).to_sql('params', con=engine, if_exists='append', method='multi')
+            # stupid hacky stuff to get it to store an array in a cell and write it to the db
+            param_df = pd.DataFrame(output[1]).iloc[[0], 1:]
+            param_df['severity_prevalence'] = output[1]['severity_prevalence'].tolist()
+            param_df.to_sql('params', con=engine, if_exists='append', method='multi')
 
             """
             else:
