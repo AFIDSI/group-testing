@@ -1,0 +1,31 @@
+_inherit_config: ./nominal.yaml
+_age_severity_config: ./madison_age_severity_config.yaml
+_scenario_name: Madison Community Parameters
+
+population_size: 258054
+expected_contacts_per_day: 3.5
+daily_outside_infection_p: 0.000012
+test_population_fraction: 0.0
+initial_ID_prevalence: 0.03297328789
+group_name: Madison Community
+
+parameters_to_vary:
+  initial_ID_prevalence:
+    - 0.000274
+    - 0.0009
+    - 0.00274
+
+# twice a week, once a week, every two weeks
+  test_population_fraction:
+    - 0.2857142857 
+    - 0.142857142857143 
+    - 0.07142857143
+
+# examine the false negative rate, likely to go up if only testing one person per room?
+  test_protocol_QFNR:
+    - 0.10 
+    - 0.30
+
+  daily_outside_infection_p:
+    - 0.00015244 
+    - 0.00030488

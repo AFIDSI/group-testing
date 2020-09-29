@@ -1,0 +1,1 @@
+config_string = 'postgres:YxDi7HnjfpBxHKQ@database-2.clbsgd2qdkby.us-east-1.rds.amazonaws.com:5432/postgres'
