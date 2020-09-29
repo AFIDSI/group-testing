@@ -157,12 +157,52 @@ def submit_simulation(ntrajectories, time_horizon,
 
     # run single group simulation
     # result_collection.append(client.submit(run_background_sim, fn_args))
-    
+
     # simulate_multiple_groups(args_for_multigroup)
     # run multi-group simulations
-    result_collection.append(client.submit(simulate_multiple_groups, args_for_multigroup))
+    sim = initialize_multigroup_sim(args_for_multigroup)
+
+    # result_collection.append(client.submit(simulate_multiple_groups, args_for_multigroup))
+    result_collection.append(client.submit(sim.run_multigroup_multiple_trajectories))
 
 
+def initialize_multigroup_sim(args_for_multigroup):
+    """
+    Was 'evaluate_testing_policy() in UW-8-group-simulations.ipynb'. Now takes
+    a tuple of arguments for the simulation and executes the multi-group
+    simulation, returning a dataframe containing the results of the simulation
+    """
+    group_params = args_for_multigroup[0]
+    interaction_matrix = args_for_multigroup[1]
+    group_names = args_for_multigroup[2]
+    test_frac = args_for_multigroup[3]
+    ntrajectories = args_for_multigroup[4]
+    time_horizon = args_for_multigroup[5]
+
+    static_group_params = []
+    for group in group_params:
+        static_group_params.append(group['params'])
+
+    assert len(group_params) == len(test_frac)
+
+    group_size = list()
+    tests_per_day = 0
+
+    # set group based contacts per day, test frequency
+    for index, params in enumerate(static_group_params):
+        params['expected_contacts_per_day'] = interaction_matrix[index, index]
+        params['test_population_fraction'] = test_frac[index]
+        group_size.append(params['population_size'])
+        tests_per_day += group_size[-1] * test_frac[index]
+
+    assert len(group_size) == len(test_frac)
+
+    sim = MultiGroupSimulation(static_group_params, interaction_matrix, ntrajectories, time_horizon, group_names)
+    return sim
+    # sim_results = run_multigroup_multiple_trajectories(sim, time_horizon, ntrajectories)
+    # return interaction_matrix, test_frac, ntrajectories, time_horizon, group_names, static_group_params, sim_results
+
+'''
 def simulate_multiple_groups(args_for_multigroup):
     """
     Was 'evaluate_testing_policy() in UW-8-group-simulations.ipynb'. Now takes
@@ -195,25 +235,10 @@ def simulate_multiple_groups(args_for_multigroup):
     assert len(group_size) == len(test_frac)
 
     sim = MultiGroupSimulation(static_group_params, interaction_matrix, group_names)
+
     sim_results = run_multigroup_multiple_trajectories(sim, time_horizon, ntrajectories)
     return interaction_matrix, test_frac, ntrajectories, time_horizon, group_names, static_group_params, sim_results
-
-
-def run_multigroup_sim(sim, T):
-    sim.run_new_trajectory(T)
-    list_dfs = list()
-    for sim_group in sim.sims:
-        list_dfs.append(sim_group.sim_df)
-    return list_dfs
-
-
-def run_multigroup_multiple_trajectories(sim, T, n):
-    sim_results = list()
-    for _ in range(n):
-        result = run_multigroup_sim(sim, T)
-        sim_results.append(result)
-    return sim_results
-
+'''
 
 def run_background_sim(input_tuple):
     """
@@ -257,13 +282,11 @@ def process_results(result_collection, job_counter, args):
 
         # write sim params
         interaction_matrix = output[0]
-        test_frac = output[1]
-        ntrajectories = output[2]
-        time_horizon = output[3]
-        group_names = output[4]
+        ntrajectories = output[1]
+        time_horizon = output[2]
+        group_names = output[3]
 
         sim_params = pd.DataFrame({
-            'test_frac': test_frac,
             'ntrajectories': ntrajectories,
             'time_horizon': time_horizon,
             'group_names': group_names,
@@ -271,7 +294,7 @@ def process_results(result_collection, job_counter, args):
             })
 
         sim_params['contact_rates'] = interaction_matrix.tolist()
-
+        
         sim_params.to_sql('sim_params', con=engine, index_label='group_index', if_exists='append', method='multi')
 
         # sim_params = pd.DataFrame()
@@ -296,25 +319,25 @@ def process_results(result_collection, job_counter, args):
         # sim_params = pd.DataFrame({'test_frac': test_frac, 'ntrajectories': ntrajectories, 'time_horizon': time_horizon })
 
         # write group params
-        for group_number in range(len(output[5])):
-            output[5][group_number]['sim_id'] = sim_id
+        for group_number in range(len(output[4])):
+            output[4][group_number]['sim_id'] = sim_id
             param_df = pd.DataFrame(output[5][group_number]).iloc[[0], 1:]
             param_df['group_number'] = group_number
 
             # stupid hacky stuff to get it to store an array in a cell and write it to the db
             param_df['severity_prevalence'] = None
-            param_df.at[0, 'severity_prevalence'] = output[5][group_number]['severity_prevalence'].tolist()
+            param_df.at[0, 'severity_prevalence'] = output[4][group_number]['severity_prevalence'].tolist()
 
             # write to database
             param_df.to_sql('group_params', con=engine, if_exists='append', method='multi')
 
         # write results
-        for trajectory_number in range(len(output[6])):
+        for trajectory_number in range(len(output[5])):
             replicate_id = uuid.uuid4()
-            for group_number in range(len(output[6][trajectory_number])):
-                output[6][trajectory_number][group_number]['sim_id'] = sim_id
-                output[6][trajectory_number][group_number]['replicate_id'] = replicate_id
-                output[6][trajectory_number][group_number].to_sql('results', con=engine, if_exists='append', method='multi')
+            for group_number in range(len(output[5][trajectory_number])):
+                output[5][trajectory_number][group_number]['sim_id'] = sim_id
+                output[5][trajectory_number][group_number]['replicate_id'] = replicate_id
+                output[5][trajectory_number][group_number].to_sql('results', con=engine, if_exists='append', method='multi')
 
         get_counter += 1
 

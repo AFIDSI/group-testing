@@ -5,7 +5,8 @@ makes the following assumptions:
         rates may vary
     * no inter-group contact tracing
 """
-from stochastic_simulation import StochasticSimulation
+# from stochastic_simulation import StochasticSimulation
+from run_sensitivity import CHTCStochasticSimulation
 import numpy as np
 
 
@@ -13,6 +14,8 @@ class MultiGroupSimulation:
     def __init__(self,
                  group_params,
                  interaction_matrix,
+                 ntrajectories,
+                 time_horizon,
                  group_names=[]):
         """
         group_params: A list of dictionaries of length N.  Each dictionary is
@@ -26,9 +29,13 @@ class MultiGroupSimulation:
         group_names: An optional list of strings of length N indicating the name
                     of each group
         """
-        self.sims = [StochasticSimulation(params) for params in group_params]
+        self.sims = [CHTCStochasticSimulation(params) for params in group_params]
         self.N = len(group_params)
         self.interaction_matrix = interaction_matrix
+        self.ntrajectories = ntrajectories
+        self.time_horizon = time_horizon
+        self.group_names = group_names
+        self.group_params = group_params
 
         self.original_interaction_matrix = interaction_matrix
         self.original_daily_contacts = [sim.daily_contacts_lambda for sim in self.sims]
@@ -189,3 +196,18 @@ class MultiGroupSimulation:
         # do individual-group steps
         for sim in self.sims:
             sim.step()
+
+    def run_multigroup_multiple_trajectories(self):
+        sim_results = list()
+        for _ in range(self.ntrajectories):
+            result = self.run_multigroup_sim()
+            sim_results.append(result)
+        # return sim_results
+        return self.interaction_matrix, self.ntrajectories, self.time_horizon, self.group_names, self.group_params, sim_results
+
+    def run_multigroup_sim(self):
+        self.run_new_trajectory(self.time_horizon)
+        list_dfs = list()
+        for sim_group in self.sims:
+            list_dfs.append(sim_group.sim_df)
+        return list_dfs

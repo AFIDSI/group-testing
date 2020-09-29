@@ -125,24 +125,21 @@ def load_params(param_file, param_file_stack=[], additional_params={}):
 
             params['mean_time_ID'] = mean_time_ID
             params['max_time_ID'] = max_time_ID
-            # params['ID_time_function'] = poisson_waiting_function(max_time_ID, mean_time_ID)
 
         elif yaml_key == 'E_time_params':
             assert(len(val) == 2)
             params['max_time_exposed'] = val[1]
             params['mean_time_exposed'] = val[0]
-            # params['exposed_time_function'] = poisson_waiting_function(val[1], val[0])
 
         elif yaml_key == 'Sy_time_params':
             assert(len(val) == 2)
             params['max_time_SyID_mild'] = val[1]
             params['mean_time_SyID_mild'] = val[0]
             # params['max_time_SyID_mild'] = val[1]
-            # params['SyID_mild_time_function'] = poisson_waiting_function(val[1], val[0])
+
             params['max_time_SyID_severe'] = val[1]
             params['mean_time_SyID_severe'] = val[0]
             # params['max_time_SyID_severe'] = val[1]
-            # params['SyID_severe_time_function'] = poisson_waiting_function(val[1], val[0])
 
         elif yaml_key == 'asymptomatic_daily_self_report_p':
             params['mild_symptoms_daily_self_report_p'] = val
@@ -182,7 +179,6 @@ def load_params(param_file, param_file_stack=[], additional_params={}):
     # the pre-ID state is not being used atm so fill it in with some default params here
     if 'max_time_pre_ID' not in params:
         params['max_time_pre_ID'] = 4
-        # params['pre_ID_time_function'] = poisson_waiting_function(max_time=4, mean_time=0)
 
     # the following 'initial_count' variables are all defaulted to 0
     for paramname in DEFAULT_ZERO_PARAMS:
