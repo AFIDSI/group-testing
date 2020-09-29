@@ -244,7 +244,7 @@ def run_simulations(scenarios, ntrajectories, time_horizon, param_values, sim_ma
                 # keep track of how many jobs were submitted
                 job_counter += 1
 
-                print('submitted job #{} to dask client'.format(job_counter))
+                print('submitted job #{} to client'.format(job_counter))
 
         print('All jobs submitted!')
 

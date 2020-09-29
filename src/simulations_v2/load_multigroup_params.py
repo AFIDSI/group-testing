@@ -5,6 +5,7 @@ import pdb
 import yaml
 
 from subdivide_severity import subdivide_severity
+from load_params import load_age_sev_params
 
 # upper bound on how far the recursion can go in the yaml-depency tree
 MAX_DEPTH = 5
@@ -53,7 +54,7 @@ def load_parameters_from_yaml(param_file):
         # load default parameters
         assert ('scenario_defaults' in simulation_parameters), 'scenario_defaults not contained in {}'.format(param_file)
         default_params = load_params(simulation_parameters['scenario_defaults'])
-        
+
         # load severities
         assert ('severity_prevalence' in simulation_parameters), 'Severity information not contained in {}'.format(param_file)
         default_params['severity_prevalence'] = prep_severity(simulation_parameters['severity_prevalence'])
@@ -74,17 +75,45 @@ def load_parameters_from_yaml(param_file):
 ####################
 
 
-def load_params(params_object, default_params=None):
+def load_params(param_file, param_file_stack=[], additional_params={}):
     # process the main params loaded from yaml, as well as the additional_params
     # optionally passed as an argument, and store them in base_params
 
-    if default_params is not None:
-        params = default_params
+    MAX_DEPTH = 2
+    with open(param_file) as file:
+        params_object = yaml.safe_load(file)
+
+    cwd = os.getcwd()
+
+    nwd = os.path.dirname(os.path.realpath(param_file))
+    os.chdir(nwd)
+
+    return_object = {}
+    params = {}
+    dynamic_params = {}
+
+    if '_inherit_config' in params_object.keys():
+        if len(param_file_stack) >= MAX_DEPTH:
+            raise(Exception("yaml config dependency depth exceeded max depth"))
+        new_param_file = params_object['_inherit_config']
+        params = load_params(new_param_file, param_file_stack + [param_file])['params']
+
+    if '_age_severity_config' in params_object.keys():
+        age_sev_file = params_object['_age_severity_config']
+        severity_dist = load_age_sev_params(age_sev_file)
+        params['severity_prevalence'] = severity_dist
     else:
-        params = {}
+        severity_dist = None
+    if '_scenario_name' in params_object.keys():
+        params['scenario_name'] = params_object['_scenario_name']
+
+    if param_file is not None:
+        # change working-directory back
+        os.chdir(cwd)
 
     for yaml_key, val in params_object.items():
-        # skip the meta-params
+
+        # skip the meta-params in this for loop
         if yaml_key[0] == '_':
             continue
 
@@ -132,16 +161,20 @@ def load_params(params_object, default_params=None):
             # change to just pass value and reference binomial_exit_function later -sw
 
         elif yaml_key == 'asymptomatic_pct_mult':
-            if default_params is not None:
-                if 'severity_prevalence' not in params:
-                    raise(Exception("encountered asymptomatic_pct_mult with no corresponding severity_dist to modify"))
-                new_asymptomatic_p = val * params['severity_prevalence'][0]
-                params['severity_prevalence'] = update_sev_prevalence(params['severity_prevalence'],
-                                                                      new_asymptomatic_p)
-                pdb.set_trace()
+            if 'severity_prevalence' not in params:
+                raise(Exception("encountered asymptomatic_pct_mult with no corresponding severity_dist to modify"))
+            new_asymptomatic_p = val * params['severity_prevalence'][0]
+            params['severity_prevalence'] = update_sev_prevalence(params['severity_prevalence'],
+                                                                  new_asymptomatic_p)
 
         elif yaml_key in COPY_DIRECTLY_YAML_KEYS:
             params[yaml_key] = val
+
+        elif yaml_key == 'parameters_to_vary':
+            dynamic_params = params_object['parameters_to_vary']
+
+        elif yaml_key == 'group_name':
+            params['group_name'] = params_object['group_name']
 
         else:
             raise(Exception("encountered unknown parameter {}".format(yaml_key)))
@@ -162,7 +195,9 @@ def load_params(params_object, default_params=None):
     if 'mild_severity_levels' not in params:
         params['mild_severity_levels'] = 1
 
-    return params
+    return_object['params'] = params
+    return_object['dynamic_params'] = dynamic_params
+    return return_object
 
 
 def update_sev_prevalence(curr_prevalence_dist, new_asymptomatic_pct):
