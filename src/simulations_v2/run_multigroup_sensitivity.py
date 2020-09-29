@@ -163,6 +163,7 @@ def submit_simulation(ntrajectories, time_horizon,
     sim = initialize_multigroup_sim(args_for_multigroup)
 
     # result_collection.append(client.submit(simulate_multiple_groups, args_for_multigroup))
+    pdb.set_trace()
     result_collection.append(client.submit(sim.run_multigroup_multiple_trajectories))
 
 
