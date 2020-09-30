@@ -1,4 +1,5 @@
 import argparse
+import copy
 import multiprocessing
 import os
 import pdb
@@ -126,7 +127,6 @@ def run_simulations(scenarios, ntrajectories, time_horizon, dynamic_scn_params,
             # create directories for each scenario name
 
             for group_params_instance in iter_param_variations(static_scn_params, dynamic_scn_params, group_params, client):
-
                 # submit the simulation to dask
                 submit_simulation(ntrajectories,
                                   time_horizon, result_collection,
@@ -476,12 +476,15 @@ def iter_param_variations(static_scn_params, dynamic_scn_params, group_params, c
     for p_name, p_values in dynamic_scn_params.items():
         print(p_name, p_values)
 
-    for group in group_params:
-        for param_to_vary, param_vals in group['dynamic_params'].items():
+    for group_number in range(len(group_params)):
+        for param_to_vary, param_vals in group_params[group_number]['dynamic_params'].items():
             for param_val in param_vals:
-                # returnable_group_params = copy.deep_copy(group_params_original)
-                update_params(group['params'], param_to_vary, param_val)   # this will update group['params'] to have one instance of the dynamic values
-                yield group_params
+                # create a copy of the original
+                permuted_group_params = copy.deepcopy(group_params)
+                # permute the copy of the original to have one instance of the dynamic values
+                update_params(permuted_group_params[group_number]['params'], param_to_vary, param_val)
+                # yield the permuted set of parameters to be run
+                yield permuted_group_params
 
     """
     # older approach (single group)
