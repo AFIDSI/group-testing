@@ -322,7 +322,7 @@ def process_results(result_collection, job_counter, args):
         # write group params
         for group_number in range(len(output[4])):
             output[4][group_number]['sim_id'] = sim_id
-            param_df = pd.DataFrame(output[5][group_number]).iloc[[0], 1:]
+            param_df = pd.DataFrame(output[4][group_number]).iloc[[0], 1:]
             param_df['group_number'] = group_number
 
             # stupid hacky stuff to get it to store an array in a cell and write it to the db
