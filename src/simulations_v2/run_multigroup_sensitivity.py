@@ -242,7 +242,7 @@ def process_results(result_collection, job_counter, args):
     engine = sqlalchemy.create_engine(db_config.config_string)
 
     for result in result_collection:
-        pdb.set_trace()
+        
         # dask approach
         output = result.result()
 
