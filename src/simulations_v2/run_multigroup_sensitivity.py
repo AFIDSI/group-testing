@@ -59,7 +59,7 @@ def simulate(args):
     faculty_staff_non_student_params = load_params(base_directory + 'faculty_staff_non_student_same_age.yaml')
     faculty_staff_off_campus_params = load_params(base_directory + 'faculty_staff_off_campus_same_age.yaml')
     ithaca_community_params = load_params(base_directory + 'madison_community.yaml')
-    
+
     # list of group parameters (single instance)
     group_params = [ug_dorm_params.copy(), ug_off_campus_params.copy(), gs_research_params.copy(), gs_other_params.copy(), faculty_staff_student_params.copy(), faculty_staff_non_student_params.copy(), faculty_staff_off_campus_params.copy(), ithaca_community_params.copy()]
 
@@ -127,12 +127,16 @@ def run_simulations(scenarios, ntrajectories, time_horizon, dynamic_scn_params,
             # create directories for each scenario name
 
             for group_params_instance in iter_param_variations(static_scn_params, dynamic_scn_params, group_params, client):
+
+                # create unique id for simulation
+                sim_id = uuid.uuid4()
+
                 # submit the simulation to dask
                 submit_simulation(ntrajectories,
                                   time_horizon, result_collection,
                                   interaction_matrix, group_sizes,
                                   test_fraction, group_names,
-                                  group_params_instance, client)
+                                  group_params_instance, client, sim_id)
 
                 # keep track of how many jobs were submitted
                 job_counter += 1
@@ -142,7 +146,7 @@ def run_simulations(scenarios, ntrajectories, time_horizon, dynamic_scn_params,
 
 def submit_simulation(ntrajectories, time_horizon,
                       result_collection, interaction_matrix, group_sizes,
-                      test_fraction, group_names, group_params, client):
+                      test_fraction, group_names, group_params, client, sim_id):
     """
     Prepares a scenario for multiple iterations, submits that process to the
     dask client, and then appends the result (promise/future) to the
@@ -163,8 +167,13 @@ def submit_simulation(ntrajectories, time_horizon,
     sim = initialize_multigroup_sim(args_for_multigroup)
 
     # result_collection.append(client.submit(simulate_multiple_groups, args_for_multigroup))
+    for _ in range(ntrajectories):
+        replicate_id = uuid.uuid4()
 
-    result_collection.append(client.submit(sim.run_multigroup_multiple_trajectories))
+        sim.sim_id = sim_id
+        sim.replicate_id = replicate_id
+
+        result_collection.append(client.submit(sim.run_multigroup_sim))
 
 
 def initialize_multigroup_sim(args_for_multigroup):
@@ -200,46 +209,7 @@ def initialize_multigroup_sim(args_for_multigroup):
 
     sim = MultiGroupSimulation(static_group_params, interaction_matrix, ntrajectories, time_horizon, group_names)
     return sim
-    # sim_results = run_multigroup_multiple_trajectories(sim, time_horizon, ntrajectories)
-    # return interaction_matrix, test_frac, ntrajectories, time_horizon, group_names, static_group_params, sim_results
 
-'''
-def simulate_multiple_groups(args_for_multigroup):
-    """
-    Was 'evaluate_testing_policy() in UW-8-group-simulations.ipynb'. Now takes
-    a tuple of arguments for the simulation and executes the multi-group
-    simulation, returning a dataframe containing the results of the simulation
-    """
-    group_params = args_for_multigroup[0]
-    interaction_matrix = args_for_multigroup[1]
-    group_names = args_for_multigroup[2]
-    test_frac = args_for_multigroup[3]
-    ntrajectories = args_for_multigroup[4]
-    time_horizon = args_for_multigroup[5]
-
-    static_group_params = []
-    for group in group_params:
-        static_group_params.append(group['params'])
-
-    assert len(group_params) == len(test_frac)
-
-    group_size = list()
-    tests_per_day = 0
-
-    # set group based contacts per day, test frequency
-    for index, params in enumerate(static_group_params):
-        params['expected_contacts_per_day'] = interaction_matrix[index, index]
-        params['test_population_fraction'] = test_frac[index]
-        group_size.append(params['population_size'])
-        tests_per_day += group_size[-1] * test_frac[index]
-
-    assert len(group_size) == len(test_frac)
-
-    sim = MultiGroupSimulation(static_group_params, interaction_matrix, group_names)
-
-    sim_results = run_multigroup_multiple_trajectories(sim, time_horizon, ntrajectories)
-    return interaction_matrix, test_frac, ntrajectories, time_horizon, group_names, static_group_params, sim_results
-'''
 
 def run_background_sim(input_tuple):
     """
@@ -262,6 +232,8 @@ def process_results(result_collection, job_counter, args):
     Takes the collection of futures returned from the dask process and
     iterates over all of them, writing the results to files as they are
     returned.
+
+    MultigroupSimulation.run_multigroup_sim() returns: self.interaction_matrix, self.ntrajectories, self.time_horizon, self.group_names, self.group_params, group_results
     """
 
     # counter to iterate over and process all results
@@ -271,21 +243,16 @@ def process_results(result_collection, job_counter, args):
 
     for result in result_collection:
 
-        # make sure we are getting both input and output back!
-
-        # pool approach
-        # result.get()
-
         # dask approach
         output = result.result()
-
-        sim_id = uuid.uuid4()
 
         # write sim params
         interaction_matrix = output[0]
         ntrajectories = output[1]
         time_horizon = output[2]
         group_names = output[3]
+        sim_id = output[6]
+        replicate_id = output[7]
 
         sim_params = pd.DataFrame({
             'ntrajectories': ntrajectories,
@@ -295,29 +262,8 @@ def process_results(result_collection, job_counter, args):
             })
 
         sim_params['contact_rates'] = interaction_matrix.tolist()
-        
-        sim_params.to_sql('sim_params', con=engine, index_label='group_index', if_exists='append', method='multi')
 
-        # sim_params = pd.DataFrame()
-        # sim_params.at[0, 'ntrajectories'] = ntrajectories
-        # sim_params.at[0, 'time_horizon'] = time_horizon
-        #
-        # sim_params['test_frac'] = None
-        # sim_params['test_frac'] = sim_params['test_frac'].astype(object)
-        # sim_params.at[0, 'test_frac'] = test_frac
-        #
-        # sim_params['interaction_matrix'] = None
-        # sim_params['interaction_matrix'] = sim_params['interaction_matrix'].astype(object)
-        # sim_params['interaction_matrix'] = interaction_matrix.tolist()
-        #
-        # sim_params = pd.DataFrame({
-        #     'interaction_matrix': interaction_matrix,
-        #     'test_frac': test_frac,
-        #     'ntrajectories': ntrajectories,
-        #     'time_horizon': time_horizon
-        #     })
-        #
-        # sim_params = pd.DataFrame({'test_frac': test_frac, 'ntrajectories': ntrajectories, 'time_horizon': time_horizon })
+        sim_params.to_sql('sim_params', con=engine, index_label='group_index', if_exists='append', method='multi')
 
         # write group params
         for group_number in range(len(output[4])):
@@ -333,12 +279,10 @@ def process_results(result_collection, job_counter, args):
             param_df.to_sql('group_params', con=engine, if_exists='append', method='multi')
 
         # write results
-        for trajectory_number in range(len(output[5])):
-            replicate_id = uuid.uuid4()
-            for group_number in range(len(output[5][trajectory_number])):
-                output[5][trajectory_number][group_number]['sim_id'] = sim_id
-                output[5][trajectory_number][group_number]['replicate_id'] = replicate_id
-                output[5][trajectory_number][group_number].to_sql('results', index_label='t', con=engine, if_exists='append', method='multi')
+        for group_number in range(len(output[5])):
+            output[5][group_number]['sim_id'] = sim_id
+            output[5][group_number]['replicate_id'] = replicate_id
+            output[5][group_number].to_sql('results', index_label='t', con=engine, if_exists='append', method='multi')
 
         get_counter += 1
 
@@ -374,32 +318,10 @@ def get_client():
         from dask_chtc import CHTCCluster
         from typing import List
 
-        '''
-        # method to import libraries to workers - from https://github.com/dask/distributed/issues/1200#issuecomment-653495399
-        class DependencyInstaller(WorkerPlugin):
-            def __init__(self, dependencies: List[str]):
-                self._depencendies = " ".join(f"'{dep}'" for dep in dependencies)
-
-            def setup(self, _worker: Worker):
-                os.system(f"pip install {self._depencendies}")
-
-        dependency_installer = DependencyInstaller([
-            "scipy",
-            "functools",
-            "numpy",
-            "pandas"
-        ])
-        '''
-
         cluster = CHTCCluster(worker_image="blue442/group-modeling-chtc:0.1", job_extra={"accounting_group": "COVID19_AFIDSI"})
         cluster.adapt(minimum=10, maximum=20)
         client = Client(cluster)
 
-        # install packages to client
-        # client.register_worker_plugin(dependency_installer)
-        # Does this work???
-        # client.upload_file('analysis_helpers.py')
-        # client.upload_file('stochastic_simulation.py')
     else:
         # local execution
         cluster = LocalCluster(multiprocessing.cpu_count() - 1)
@@ -479,25 +401,16 @@ def iter_param_variations(static_scn_params, dynamic_scn_params, group_params, c
     for group_number in range(len(group_params)):
         for param_to_vary, param_vals in group_params[group_number]['dynamic_params'].items():
             for param_val in param_vals:
+
                 # create a copy of the original
                 permuted_group_params = copy.deepcopy(group_params)
+
                 # permute the copy of the original to have one instance of the dynamic values
                 update_params(permuted_group_params[group_number]['params'], param_to_vary, param_val)
+
                 # yield the permuted set of parameters to be run
                 yield permuted_group_params
 
-    """
-    # older approach (single group)
-    base_params = base_params.copy()
-    params_list = [param_values[param] for param in params_to_vary]
-    for param_tuple in itertools.product(*params_list):
-        param_specifier = {}
-        for param, value in zip(params_to_vary, param_tuple):
-            update_params(base_params, param, value)
-            param_specifier[param] = value
-
-        yield param_specifier, base_params
-    """
 
 def update_params(sim_params, param_to_vary, param_val):
     # VERY TEMPORARY HACK TO GET SENSITIVITY SIMS FOR ASYMPTOMATIC %
@@ -537,7 +450,6 @@ def update_params(sim_params, param_to_vary, param_val):
         sim_params[param_to_vary] = param_val
 
 
-
 ################
 # Define classes locally to avoid import errors in workers
 ################
@@ -575,6 +487,8 @@ class MultiGroupSimulation:
         self.original_daily_contacts = [sim.daily_contacts_lambda for sim in self.sims]
         self.lockdown_in_effect = False
         self.simulate_lockdown = False
+        self.sim_id = None
+        self.replicate_id = None
 
     def configure_lockdown(self,
                            post_lockdown_interaction_matrix,
@@ -731,20 +645,13 @@ class MultiGroupSimulation:
         for sim in self.sims:
             sim.step()
 
-    def run_multigroup_multiple_trajectories(self):
-        sim_results = list()
-        for _ in range(self.ntrajectories):
-            result = self.run_multigroup_sim()
-            sim_results.append(result)
-        # return sim_results
-        return self.interaction_matrix, self.ntrajectories, self.time_horizon, self.group_names, self.group_params, sim_results
-
     def run_multigroup_sim(self):
         self.run_new_trajectory(self.time_horizon)
-        list_dfs = list()
+        group_results = list()
         for sim_group in self.sims:
-            list_dfs.append(sim_group.sim_df)
-        return list_dfs
+            group_results.append(sim_group.sim_df)
+        return self.interaction_matrix, self.ntrajectories, self.time_horizon, self.group_names, self.group_params,
+        group_results, self.sim_id, self.replicate_id
 
 
 import numpy as np
