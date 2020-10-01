@@ -242,7 +242,7 @@ def process_results(result_collection, job_counter, args):
     engine = sqlalchemy.create_engine(db_config.config_string)
 
     for result in result_collection:
-
+        pdb.set_trace()
         # dask approach
         output = result.result()
 
@@ -650,8 +650,7 @@ class MultiGroupSimulation:
         group_results = list()
         for sim_group in self.sims:
             group_results.append(sim_group.sim_df)
-        return self.interaction_matrix, self.ntrajectories, self.time_horizon, self.group_names, self.group_params,
-        group_results, self.sim_id, self.replicate_id
+        return self.interaction_matrix, self.ntrajectories, self.time_horizon, self.group_names, self.group_params, group_results, self.sim_id, self.replicate_id
 
 
 import numpy as np
