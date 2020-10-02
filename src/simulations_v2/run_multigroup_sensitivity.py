@@ -136,17 +136,16 @@ def run_simulations(scenarios, ntrajectories, time_horizon, dynamic_scn_params,
                                   time_horizon, result_collection,
                                   interaction_matrix, group_sizes,
                                   test_fraction, group_names,
-                                  group_params_instance, client, sim_id)
-
-                # keep track of how many jobs were submitted
-                job_counter += 1
+                                  group_params_instance, client, sim_id,
+                                  job_counter)
 
         process_results(result_collection, job_counter, args)
 
 
 def submit_simulation(ntrajectories, time_horizon,
                       result_collection, interaction_matrix, group_sizes,
-                      test_fraction, group_names, group_params, client, sim_id):
+                      test_fraction, group_names, group_params, client, sim_id,
+                      job_counter):
     """
     Prepares a scenario for multiple iterations, submits that process to the
     dask client, and then appends the result (promise/future) to the
@@ -169,6 +168,8 @@ def submit_simulation(ntrajectories, time_horizon,
     # result_collection.append(client.submit(simulate_multiple_groups, args_for_multigroup))
     for _ in range(ntrajectories):
         replicate_id = uuid.uuid4()
+        # keep track of how many jobs were submitted
+        job_counter += 1
 
         sim.sim_id = sim_id
         sim.replicate_id = replicate_id
@@ -242,7 +243,7 @@ def process_results(result_collection, job_counter, args):
     engine = sqlalchemy.create_engine(db_config.config_string)
 
     for result in result_collection:
-        
+
         # dask approach
         output = result.result()
 
