@@ -283,6 +283,7 @@ def process_results(result_collection, job_counter, args):
         for group_number in range(len(output[5])):
             output[5][group_number]['sim_id'] = sim_id
             output[5][group_number]['replicate_id'] = replicate_id
+            output[5][group_number]['group_number'] = group_number
             output[5][group_number].to_sql('results', index_label='t', con=engine, if_exists='append', method='multi')
 
         get_counter += 1
