@@ -17,7 +17,7 @@ import sqlalchemy
 from analysis_helpers import run_multiple_trajectories
 import db_config
 # from multi_group_simulation import MultiGroupSimulation
-from load_multigroup_params import load_params
+from load_multigroup_params import load_params, load_parameters_from_yaml
 from run_sensitivity import create_scenario_dict
 
 BASE_DIRECTORY = os.path.abspath(os.path.join('')) + "/sim_output/"
@@ -94,6 +94,9 @@ def simulate(args):
     for i in range(len(group_sizes)):
         for j in range(len(group_sizes)):
             interaction_matrix[j, i] = (interaction_matrix[i, j] * group_sizes[i]) / group_sizes[j]
+
+    test = load_parameters_from_yaml(base_directory + 'multi-group.yaml')
+    pdb.set_trace()
 
     run_simulations(scenarios, int(args.ntrajectories), args.time_horizon,
                     dynamic_scn_params, interaction_matrix, group_params,

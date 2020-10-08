@@ -53,7 +53,7 @@ def load_parameters_from_yaml(param_file):
 
         # load default parameters
         assert ('scenario_defaults' in simulation_parameters), 'scenario_defaults not contained in {}'.format(param_file)
-        default_params = load_params(simulation_parameters['scenario_defaults'])
+        default_params = simulation_parameters['scenario_defaults']
 
         # load severities
         assert ('severity_prevalence' in simulation_parameters), 'Severity information not contained in {}'.format(param_file)
@@ -64,7 +64,7 @@ def load_parameters_from_yaml(param_file):
 
         group_definitions = {}
         for group_name, group_params in simulation_parameters['groups'].items():
-            group_definitions[group_name] = load_params(group_params, default_params)
+            group_definitions[group_name] = load_multi_group_params(group_params, default_params)
         base_params['groups'] = group_definitions
 
         return base_params
@@ -73,6 +73,10 @@ def load_parameters_from_yaml(param_file):
 ####################
 # HELPER FUNCTIONS #
 ####################
+
+
+def load_multi_group_params(group_params, default_params):
+    pdb.set_trace()
 
 
 def load_params(param_file, param_file_stack=[], additional_params={}):
