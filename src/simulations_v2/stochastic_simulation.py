@@ -8,9 +8,15 @@ import numpy as np
 import pandas as pd
 from math import ceil
 from scipy.stats import poisson
-import functools
 import pdb
+# from analysis_helpers import binomial_exit_function
 
+
+def binomial_exit_function(p):
+    return (lambda n: np.random.binomial(n, p))
+
+
+import functools
 
 @functools.lru_cache(maxsize=128)
 def poisson_pmf(max_time, mean_time):
@@ -19,10 +25,6 @@ def poisson_pmf(max_time, mean_time):
         pmf.append(poisson.pmf(i, mean_time))
     pmf.append(1-np.sum(pmf))
     return np.array(pmf)
-
-
-def binomial_exit_function(p):
-    return (lambda n: np.random.binomial(n, p))
 
 
 def poisson_waiting_function(max_time, mean_time):
@@ -64,6 +66,7 @@ class StochasticSimulation:
             # self.sample_E_times = params['exposed_time_function']
             self.sample_E_times = poisson_waiting_function(max_time=params['max_time_exposed'], mean_time=params['mean_time_exposed'])
 
+        pdb.set_trace()
         if 'mean_time_pre_ID' in params:
             mean_time = params['mean_time_pre_ID']
             self.sample_pre_ID_times = poisson_waiting_function(max_time=self.max_time_pre_ID, mean_time=mean_time)
@@ -176,6 +179,7 @@ class StochasticSimulation:
 
         # instantiate state variables and relevant simulation variables
         self.reset_initial_state()
+
 
     def reset_initial_state(self):
         if self.init_ID_prevalence:
@@ -296,6 +300,7 @@ class StochasticSimulation:
 
         #print("initial isolations: {}, final isolations: {}".format(initial_isolations, total_cases_isolated))
 
+
     def _trace_SyID_severe_queue(self, leave_SyID_severe):
         assert(leave_SyID_severe <= sum(self.SyID_severe))
         self.QI = self.QI + leave_SyID_severe
@@ -307,6 +312,7 @@ class StochasticSimulation:
             leave_SyID_severe -= leave_SyID_severe_at_idx
             idx -= 1
 
+
     def _trace_SyID_mild_queue(self, leave_SyID_mild):
         assert(leave_SyID_mild <= sum(self.SyID_mild))
         self.QI = self.QI + leave_SyID_mild
@@ -317,6 +323,7 @@ class StochasticSimulation:
             self.SyID_mild[idx] -= leave_SyID_mild_at_idx
             leave_SyID_mild -= leave_SyID_mild_at_idx
             idx -= 1
+   
 
     def _trace_E_queue(self, leave_E):
         assert(leave_E <= sum(self.E))

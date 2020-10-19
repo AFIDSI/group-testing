@@ -1,3 +1,9 @@
+# number of replicates of each run
+ntrajectories: 5
+
+# time simulation is run
+time_horizon: 60
+
 severity_prevalence:
 
   prob_severity_given_age:
@@ -100,7 +106,7 @@ groups:
     expected_contacts_per_day: 10
     daily_outside_infection_p: 0.000012
     test_population_fraction: 0.07142857143
-    initial_ID_prevalence: 0.002939793039
+    initial_ID_prevalence: [0.002939793039, 0.004]
     arrival_testing_proportion: 1
     age_distribution: [0, 1, 0, 0, 0]
 
@@ -110,7 +116,7 @@ groups:
     population_size: 24254
     expected_contacts_per_day: 7.2
     daily_outside_infection_p: 0.000012
-    test_population_fraction: 0.002945022323      # 500 samples from 24254 students every 7
+    test_population_fraction: [0.002945022323, 0.07142857143]      # 500 samples from 24254 students every 7
     initial_ID_prevalence: 0.002939793039
     age_distribution: [0, 1, 0, 0, 0]
 

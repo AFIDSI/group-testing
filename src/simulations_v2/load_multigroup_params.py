@@ -1,5 +1,6 @@
 import os
 
+import copy
 import numpy as np
 import pdb
 import yaml
@@ -45,19 +46,24 @@ def load_parameters_from_yaml(param_file):
         # create empty dictionary for collecting processed parameters from yaml
         base_params = {}
 
+        base_params['ntrajectories'] = simulation_parameters['ntrajectories']
+
+        base_params['time_horizon'] = simulation_parameters['time_horizon']
+
         # load interaction matrix
-        base_params['contact_matrix'] = np.array(simulation_parameters['interaction_matrix'])
+        base_params['interaction_matrix'] = np.array(simulation_parameters['interaction_matrix'])
 
         # load group names
         base_params['group_names'] = simulation_parameters['group_names']
 
-        # load default parameters
-        assert ('scenario_defaults' in simulation_parameters), 'scenario_defaults not contained in {}'.format(param_file)
-        default_params = simulation_parameters['scenario_defaults']
-
         # load severities
         assert ('severity_prevalence' in simulation_parameters), 'Severity information not contained in {}'.format(param_file)
-        default_params['severity_prevalence'] = prep_severity(simulation_parameters['severity_prevalence'])
+        severity_prevalence = prep_severity(simulation_parameters['severity_prevalence'])
+
+        # load default parameters
+        assert ('scenario_defaults' in simulation_parameters), 'scenario_defaults not contained in {}'.format(param_file)
+        default_params = load_defaults(simulation_parameters['scenario_defaults'], severity_prevalence)
+
 
         # load group-specific parameterizations
         assert ('groups' in simulation_parameters), 'Group information not contained in {}'.format(param_file)
@@ -75,8 +81,146 @@ def load_parameters_from_yaml(param_file):
 ####################
 
 
+def identify_dynamic_params(base_params):
+    default_param_dimensions = {'E_time_params': 2,
+                                'ID_time_params': 2,
+                                'Sy_time_params': 2,
+                                'initial_E_count': 1,
+                                'initial_pre_ID_count': 1,
+                                'initial_ID_count': 1,
+                                'initial_SyID_mild_count': 1,
+                                'initial_SyID_severe_count': 1,
+                                'exposed_infection_p': 1,
+                                'expected_contacts_per_day': 1,
+                                'perform_contact_tracing': 1,
+                                'contact_tracing_delay': 1,
+                                'cases_isolated_per_contact': 1,
+                                'cases_quarantined_per_contact': 1,
+                                'use_asymptomatic_testing': 1,
+                                'contact_trace_testing_frac': 1,
+                                'days_between_tests': 1,
+                                'test_population_fraction': 1,
+                                'test_protocol_QFNR': 1,
+                                'test_protocol_QFPR': 1,
+                                'initial_ID_prevalence': 1,
+                                'population_size': 1,
+                                'severity_prevalence': 1,
+                                'age_distribution': 1,
+                                'daily_outside_infection_p': 1,
+                                'arrival_testing_proportion': 1}
+
+    # grab example group
+    group = base_params['groups'][list(base_params['groups'].keys())[0]]
+
+    # check the number of lists in the age_distribution
+    number_of_age_groups = np.array(group['age_distribution']).shape[-1]
+    default_param_dimensions['age_distribution'] = number_of_age_groups
+    default_param_dimensions['severity_prevalence'] = number_of_age_groups
+    default_param_dimensions['prob_infection_by_age'] = number_of_age_groups
+
+    # create a dictionary of dynamic params by checking the observed length against the expected
+    dynamic_params = {}
+    for group_name, group_params in base_params['groups'].items():
+        for param_name, param_value in group_params.items():
+            if type(param_value) is list:
+                if len(param_value) != default_param_dimensions[param_name]:
+                    # if group_name not in dynamic_params.keys():
+                    #     dynamic_params[group_name] = {}
+                    dynamic_params[(group_name, param_name)] = param_value
+
+    return dynamic_params
+
+
 def load_multi_group_params(group_params, default_params):
-    pdb.set_trace()
+    returnable_param_set = copy.deepcopy(default_params)
+    for param_name, param_value in group_params.items():
+        returnable_param_set[param_name] = param_value
+    return returnable_param_set
+
+
+def load_defaults(default_input, severity_prevalence):
+    default_params = {}
+
+    default_params['severity_prevalence'] = severity_prevalence
+
+    for yaml_key, val in default_input.items():
+
+        # skip the meta-params in this for loop
+        if yaml_key[0] == '_':
+            continue
+
+        if yaml_key == 'ID_time_params':
+            assert(len(val) == 2)
+
+            mean_time_ID = val[0]
+            max_time_ID = val[1]
+
+            default_params['mean_time_ID'] = mean_time_ID
+            default_params['max_time_ID'] = max_time_ID
+
+        elif yaml_key == 'E_time_params':
+            assert(len(val) == 2)
+            default_params['max_time_exposed'] = val[1]
+            default_params['mean_time_exposed'] = val[0]
+
+        elif yaml_key == 'Sy_time_params':
+            assert(len(val) == 2)
+            default_params['max_time_SyID_mild'] = val[1]
+            default_params['mean_time_SyID_mild'] = val[0]
+            # default_params['max_time_SyID_mild'] = val[1]
+
+            default_params['max_time_SyID_severe'] = val[1]
+            default_params['mean_time_SyID_severe'] = val[0]
+            # default_params['max_time_SyID_severe'] = val[1]
+
+        elif yaml_key == 'asymptomatic_daily_self_report_p':
+            default_params['mild_symptoms_daily_self_report_p'] = val
+
+        elif yaml_key == 'symptomatic_daily_self_report_p':
+            default_params['severe_symptoms_daily_self_report_p'] = val
+
+        elif yaml_key == 'daily_leave_QI_p':
+            # default_params['sample_QI_exit_function'] = binomial_exit_function(val)  # (lambda n: np.random.binomial(n, val))
+            default_params['sample_QI_exit_function_param'] = val
+            # change to just pass value and reference binomial_exit_function later -sw
+
+        elif yaml_key == 'daily_leave_QS_p':
+            # default_params['sample_QS_exit_function'] = binomial_exit_function(val)  # (lambda n: np.random.binomial(n, val))
+            default_params['sample_QS_exit_function_param'] = val
+            # change to just pass value and reference binomial_exit_function later -sw
+
+        elif yaml_key == 'asymptomatic_pct_mult':
+            if 'severity_prevalence' not in default_params:
+                raise(Exception("encountered asymptomatic_pct_mult with no corresponding severity_dist to modify"))
+            new_asymptomatic_p = val * default_params['severity_prevalence'][0]
+            default_params['severity_prevalence'] = update_sev_prevalence(default_params['severity_prevalence'],
+                                                                          new_asymptomatic_p)
+
+        elif yaml_key in COPY_DIRECTLY_YAML_KEYS:
+            default_params[yaml_key] = val
+
+        elif yaml_key == 'group_name':
+            default_params['group_name'] = default_input['group_name']
+
+        else:
+            raise(Exception("encountered unknown parameter {}".format(yaml_key)))
+
+    # the pre-ID state is not being used atm so fill it in with some default params here
+    if 'max_time_pre_ID' not in default_params:
+        default_params['max_time_pre_ID'] = 4
+
+    # the following 'initial_count' variables are all defaulted to 0
+    for paramname in DEFAULT_ZERO_PARAMS:
+        if paramname not in default_params:
+            default_params[paramname] = 0
+
+    if 'pre_ID_state' not in default_params:
+        default_params['pre_ID_state'] = 'detectable'
+
+    if 'mild_severity_levels' not in default_params:
+        default_params['mild_severity_levels'] = 1
+
+    return default_params
 
 
 def load_params(param_file, param_file_stack=[], additional_params={}):
