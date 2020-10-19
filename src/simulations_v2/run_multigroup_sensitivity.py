@@ -51,7 +51,6 @@ def simulate(args):
     """
 
     group_sizes = []
-    group_names = []
 
     params = load_parameters_from_yaml(args.multigroup_file)
 
@@ -71,18 +70,18 @@ def simulate(args):
 
     run_simulations(params['ntrajectories'], params['time_horizon'],
                     dynamic_permutations, interaction_matrix, group_params,
-                    group_names, group_sizes, args)
+                    group_sizes, args)
 
 
 def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
-                    interaction_matrix, group_params, group_names,
+                    interaction_matrix, group_params,
                     group_sizes, args):
     """
     Function to prep and submit individual simulations to a dask cluster, then
     process the results of the simulation.
     """
-
-    print('{}: submitting jobs...'.format(time.ctime()))
+    submit_time = time.ctime()
+    print('{}: submitting jobs...'.format(submit_time))
 
     # initialize counter
     job_counter = 0
@@ -93,26 +92,25 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
     with get_client() as client:
 
         for group_params_instance in iter_param_variations(dynamic_permutations, group_params):
-
+            
             # create unique id for simulation
             sim_id = uuid.uuid4()
 
             job_counter += 1
-            
+
             # submit the simulation to dask
             submit_simulation(ntrajectories,
                               time_horizon, result_collection,
                               interaction_matrix, group_sizes,
-                              group_names,
                               group_params_instance, client, sim_id,
                               job_counter)
 
-        process_results(result_collection, job_counter, args)
+        process_results(result_collection, job_counter, args, submit_time)
 
 
 def submit_simulation(ntrajectories, time_horizon,
                       result_collection, interaction_matrix, group_sizes,
-                      group_names, group_params, client, sim_id, job_counter):
+                      group_params, client, sim_id, job_counter):
     """
     Prepares a scenario for multiple iterations, submits that process to the
     dask client, and then appends the result (promise/future) to the
@@ -122,7 +120,7 @@ def submit_simulation(ntrajectories, time_horizon,
     # package up inputs for running simulations
     # fn_args = (sim_sub_dir, sim_params, ntrajectories, time_horizon)
 
-    args_for_multigroup = (group_params, interaction_matrix, group_names,
+    args_for_multigroup = (group_params, interaction_matrix,
                            ntrajectories, time_horizon)
 
     # run single group simulation
@@ -157,11 +155,11 @@ def initialize_multigroup_sim(args_for_multigroup):
 
     group_params = args_for_multigroup[0]
     interaction_matrix = args_for_multigroup[1]
-    group_names = args_for_multigroup[2]
-    ntrajectories = args_for_multigroup[3]
-    time_horizon = args_for_multigroup[4]
+    ntrajectories = args_for_multigroup[2]
+    time_horizon = args_for_multigroup[3]
 
     static_group_params = []
+    group_names = []
     for group_name, group_params in group_params.items():
         static_group_params.append(group_params)
         group_names.append(group_name)
@@ -196,7 +194,7 @@ def run_background_sim(input_tuple):
     return output_dir, dfs
 
 
-def process_results(result_collection, job_counter, args):
+def process_results(result_collection, job_counter, args, submit_time):
     """
     Takes the collection of futures returned from the dask process and
     iterates over all of them, writing the results to files as they are
@@ -237,12 +235,23 @@ def process_results(result_collection, job_counter, args):
         # write group params
         for group_number in range(len(output[4])):
             output[4][group_number]['sim_id'] = sim_id
-            param_df = pd.DataFrame(output[4][group_number]).iloc[[0], 1:]
+
+            # remove non-conforming entries
+            severity_prevalence = output[4][group_number].pop('severity_prevalence').tolist()
+            age_distribution = output[4][group_number].pop('age_distribution')
+
+            # param_df = pd.DataFrame(output[4][group_number]).iloc[[0], 1:]
+            param_df = pd.DataFrame(output[4][group_number], index=[0])
             param_df['group_number'] = group_number
 
             # stupid hacky stuff to get it to store an array in a cell and write it to the db
             param_df['severity_prevalence'] = None
-            param_df.at[0, 'severity_prevalence'] = output[4][group_number]['severity_prevalence'].tolist()
+            param_df['age_distribution'] = None
+
+            # param_df.at[0, 'severity_prevalence'] = output[4][group_number]['severity_prevalence'].tolist()
+            param_df.at[0, 'severity_prevalence'] = severity_prevalence
+            param_df.at[0, 'age_distribution'] = age_distribution
+            param_df.at[0, 'submit_time'] = submit_time
 
             # write to database
             param_df.to_sql('group_params', con=engine, if_exists='append', method='multi')

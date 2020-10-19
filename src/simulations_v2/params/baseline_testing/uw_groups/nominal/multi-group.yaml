@@ -1,5 +1,5 @@
 # number of replicates of each run
-ntrajectories: 5
+ntrajectories: 2
 
 # time simulation is run
 time_horizon: 60
