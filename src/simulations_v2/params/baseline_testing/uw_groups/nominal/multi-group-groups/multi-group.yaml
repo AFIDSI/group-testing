@@ -109,6 +109,7 @@ groups:
     initial_ID_prevalence: [0.002939793039, 0.004]
     arrival_testing_proportion: 1
     age_distribution: [0, 1, 0, 0, 0]
+    contact_rate_multiplier: [0.75, 1, 1.25]
 
   undergraduates_off_campus:
     _scenario_name: Undergrad (off campus) Parameters
@@ -119,6 +120,7 @@ groups:
     test_population_fraction: [0.002945022323, 0.07142857143]      # 500 samples from 24254 students every 7
     initial_ID_prevalence: 0.002939793039
     age_distribution: [0, 1, 0, 0, 0]
+    contact_rate_multiplier: [0.75, 1, 1.25]
 
   grad_research:
     _scenario_name: Grad student research Parameters

@@ -92,7 +92,7 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
     with get_client() as client:
 
         for group_params_instance in iter_param_variations(dynamic_permutations, group_params):
-            
+
             # create unique id for simulation
             sim_id = uuid.uuid4()
 

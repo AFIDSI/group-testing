@@ -28,7 +28,8 @@ COPY_DIRECTLY_YAML_KEYS = ['exposed_infection_p', 'expected_contacts_per_day',
                            'test_population_fraction', 'test_protocol_QFNR',
                            'test_protocol_QFPR', 'initial_ID_prevalence',
                            'population_size', 'severity_prevalence', 'age_distribution',
-                           'daily_outside_infection_p', 'arrival_testing_proportion'] + \
+                           'daily_outside_infection_p', 'arrival_testing_proportion',
+                           'contact_rate_multiplier'] + \
             DEFAULT_ZERO_PARAMS
 
 
@@ -107,7 +108,8 @@ def identify_dynamic_params(base_params):
                                 'severity_prevalence': 1,
                                 'age_distribution': 1,
                                 'daily_outside_infection_p': 1,
-                                'arrival_testing_proportion': 1}
+                                'arrival_testing_proportion': 1,
+                                'contact_rate_multiplier': 1}
 
     # grab example group
     group = base_params['groups'][list(base_params['groups'].keys())[0]]
@@ -219,6 +221,9 @@ def load_defaults(default_input, severity_prevalence):
 
     if 'mild_severity_levels' not in default_params:
         default_params['mild_severity_levels'] = 1
+
+    if 'contact_rate_multiplier' not in default_params:
+        default_params['contact_rate_multiplier'] = 1
 
     return default_params
 
