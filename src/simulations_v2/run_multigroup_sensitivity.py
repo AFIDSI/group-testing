@@ -620,7 +620,7 @@ class MultiGroupSimulation:
                     continue
                 free_susceptible_i = self.sims[i].S
 
-                interactions_lambda_i_j = self.interaction_matrix[i,j]
+                interactions_lambda_i_j = self.interaction_matrix[i,j] * self.sims[i].contact_rate_multiplier
 
                 free_infectious_j = self.get_free_infectious(j)
                 free_total_j = self.get_free_total(j)
@@ -788,6 +788,8 @@ class CHTCStochasticSimulation:
             self.init_pre_ID_count - self.init_ID_count - \
             self.init_SyID_mild_count - self.init_SyID_severe_count
         assert(self.init_S_count >= 0)
+
+        self.contact_rate_multiplier = params['contact_rate_multiplier']
 
         # instantiate state variables and relevant simulation variables
         self.reset_initial_state()
