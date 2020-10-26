@@ -298,7 +298,7 @@ def get_client():
         from typing import List
 
         cluster = CHTCCluster(worker_image="blue442/group-modeling-chtc:0.1", job_extra={"accounting_group": "COVID19_AFIDSI"})
-        cluster.adapt(minimum=10, maximum=20)
+        cluster.adapt(minimum=150, maximum=150)
         client = Client(cluster)
 
     else:
@@ -613,7 +613,7 @@ class MultiGroupSimulation:
     def step(self):
         # do inter-group interactions first, so that no updates happen after each sim adds
         # a row to their dataframe
-        new_E_holder = [0]* self.N
+        new_E_holder = [0] * self.N
         for i in range(self.N):
             for j in range(self.N):
                 if i == j:
