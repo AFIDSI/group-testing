@@ -1,5 +1,5 @@
 # number of replicates of each run
-ntrajectories: 2
+ntrajectories: 20
 
 # time simulation is run
 time_horizon: 60
@@ -131,7 +131,7 @@ groups:
     test_population_fraction: 0.002987018418
     initial_ID_prevalence: [0.002939793039, 0.03297328789]
     age_distribution: [0, 1, 0, 0, 0]
-    contact_rate_multiplier: [0.5, 0.75, 1, 1.25]
+    contact_rate_multiplier: [0.5, 0.75, 1]
 
   grad_teaching:
     _scenario_name: Grad student other Parameters
@@ -142,7 +142,7 @@ groups:
     test_population_fraction: 0.002987018418
     initial_ID_prevalence: [0.002939793039, 0.03297328789]
     age_distribution: [0, 1, 0, 0, 0]
-    contact_rate_multiplier: [0.5, 0.75, 1, 1.25]
+    contact_rate_multiplier: [0.5, 0.75, 1]
 
   fac_staff_student_facing:
     _scenario_name: Faculty Staff student facing
@@ -153,7 +153,7 @@ groups:
     test_population_fraction: 0.002987018418
     initial_ID_prevalence: [0.002939793039, 0.03297328789]
     age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
-    contact_rate_multiplier: [0.5, 0.75, 1, 1.25]
+    contact_rate_multiplier: [0.5, 0.75, 1]
 
   fac_staff_non_student_facing:
     _scenario_name: Faculty Staff non-student facing
@@ -164,7 +164,7 @@ groups:
     test_population_fraction: 0.002987018418
     initial_ID_prevalence: [0.002939793039, 0.03297328789]
     age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
-    contact_rate_multiplier: [0.5, 0.75, 1, 1.25]
+    contact_rate_multiplier: [0.5, 0.75, 1]
 
   fac_staff_WFH:
     _scenario_name: Faculty Staff WFH
@@ -175,7 +175,7 @@ groups:
     test_population_fraction: 0.0
     initial_ID_prevalence: [0.002939793039, 0.03297328789]
     age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
-    contact_rate_multiplier: [0.5, 0.75, 1, 1.25]
+    contact_rate_multiplier: [0.5, 0.75, 1]
 
 
   community:
@@ -187,4 +187,4 @@ groups:
     test_population_fraction: 0.0
     initial_ID_prevalence: [0.002939793039, 0.03297328789]
     age_distribution: [0.237, 0.478, 0.193, 0.046, 0.047]
-    contact_rate_multiplier: [0.5, 0.75, 1, 1.25]
+    contact_rate_multiplier: [0.5, 0.75, 1]
