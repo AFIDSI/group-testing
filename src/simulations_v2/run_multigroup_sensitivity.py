@@ -298,7 +298,7 @@ def get_client():
         from typing import List
 
         cluster = CHTCCluster(worker_image="blue442/group-modeling-chtc:0.1", job_extra={"accounting_group": "COVID19_AFIDSI"})
-        cluster.adapt(minimum=150, maximum=150)
+        cluster.adapt(minimum=400, maximum=400)
         client = Client(cluster)
 
     else:

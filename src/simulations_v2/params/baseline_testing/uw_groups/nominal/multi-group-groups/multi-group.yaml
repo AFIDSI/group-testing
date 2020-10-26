@@ -129,7 +129,8 @@ groups:
     expected_contacts_per_day: 4
     daily_outside_infection_p: 0.000012
     test_population_fraction: 0.002987018418
-    initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    # initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    initial_ID_prevalence: 0.002939793039
     age_distribution: [0, 1, 0, 0, 0]
     contact_rate_multiplier: [0.5, 0.75, 1]
 
@@ -140,7 +141,8 @@ groups:
     expected_contacts_per_day: 7.2
     daily_outside_infection_p: 0.000012
     test_population_fraction: 0.002987018418
-    initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    # initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    initial_ID_prevalence: 0.002939793039
     age_distribution: [0, 1, 0, 0, 0]
     contact_rate_multiplier: [0.5, 0.75, 1]
 
@@ -151,7 +153,8 @@ groups:
     expected_contacts_per_day: 2
     daily_outside_infection_p: 0.000012
     test_population_fraction: 0.002987018418
-    initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    # initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    initial_ID_prevalence: 0.002939793039
     age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
     contact_rate_multiplier: [0.5, 0.75, 1]
 
@@ -162,7 +165,8 @@ groups:
     expected_contacts_per_day: 3
     daily_outside_infection_p: 0.000012
     test_population_fraction: 0.002987018418
-    initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    # initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    initial_ID_prevalence: 0.002939793039
     age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
     contact_rate_multiplier: [0.5, 0.75, 1]
 
@@ -173,7 +177,8 @@ groups:
     expected_contacts_per_day: 1
     daily_outside_infection_p: 0.000012
     test_population_fraction: 0.0
-    initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    # initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    initial_ID_prevalence: 0.002939793039
     age_distribution: [0, 0.515657298, 0.45027949, 0.029314013, 0.004749198]
     contact_rate_multiplier: [0.5, 0.75, 1]
 
@@ -185,6 +190,7 @@ groups:
     expected_contacts_per_day: 3.5
     daily_outside_infection_p: 0.000012
     test_population_fraction: 0.0
-    initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    # initial_ID_prevalence: [0.002939793039, 0.03297328789]
+    initial_ID_prevalence: 0.002939793039
     age_distribution: [0.237, 0.478, 0.193, 0.046, 0.047]
     contact_rate_multiplier: [0.5, 0.75, 1]
