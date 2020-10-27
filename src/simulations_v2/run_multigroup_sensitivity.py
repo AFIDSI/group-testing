@@ -1,6 +1,8 @@
 import argparse
 import copy
 import itertools
+import logging
+from logging.config import fileConfig
 import multiprocessing
 import os
 import pdb
@@ -19,7 +21,13 @@ from analysis_helpers import run_multiple_trajectories
 import db_config
 # from multi_group_simulation import MultiGroupSimulation
 from load_multigroup_params import load_params, load_parameters_from_yaml, identify_dynamic_params
+from logger_initializer import initialize_logger
 from run_sensitivity import create_scenario_dict
+
+# fileConfig('logging.ini')
+# logger = logging.getLogger(__name__)
+# logger.addHandler('file_logger')
+initialize_logger('./logs')
 
 BASE_DIRECTORY = os.path.abspath(os.path.join('')) + "/sim_output/"
 
@@ -81,7 +89,7 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
     process the results of the simulation.
     """
     submit_time = time.ctime()
-    print('{}: submitting jobs...'.format(submit_time))
+    logging.info('{}: submitting jobs...'.format(submit_time))
 
     # initialize counter
     job_counter = 0
@@ -138,7 +146,7 @@ def submit_simulation(ntrajectories, time_horizon,
         submittable_sim = copy.deepcopy(sim)
         submittable_sim.sim_id = sim_id
         submittable_sim.replicate_id = replicate_id
-        print('submitting sim_id = {}, replicate_id = {}'.format(submittable_sim.sim_id, submittable_sim.replicate_id))
+        logging.info('submitting sim_id = {}, replicate_id = {}'.format(submittable_sim.sim_id, submittable_sim.replicate_id))
 
         result_collection.append(client.submit(submittable_sim.run_multigroup_sim))
 
@@ -265,9 +273,9 @@ def process_results(result_collection, job_counter, args, submit_time):
 
         get_counter += 1
 
-        print("{}: {} of {} simulations complete!".format(time.ctime(), get_counter, job_counter))
+        logging.info("{}: {} of {} simulations complete!".format(time.ctime(), get_counter, job_counter))
 
-    print("Simulations done.")
+    logging.info("Simulations done.")
 
 
 def initialize_results_directory(sim_scn_dir, job_counter, param_specifier,
@@ -319,7 +327,7 @@ def ready_params(args):
 
     for param_to_vary, values in zip(params_to_vary, args.values):
         if param_to_vary not in VALID_GLOBAL_PARAMS_TO_VARY:
-            print("Received invalid parameter to vary: {}".format(param_to_vary))
+            logging.error("Received invalid parameter to vary: {}".format(param_to_vary))
             exit()
         if param_to_vary == 'contact_tracing_delay':
             param_values[param_to_vary] = [int(v) for v in values]
@@ -375,9 +383,9 @@ def iter_param_variations(dynamic_scn_params, params):
     i = 0
     for iteration in dynamic_scn_params:
         i += 1
-        print('parameter set #{}'.format(i))
+        logging.debug('parameter set #{}'.format(i))
         for parameter_assignment, parameter_value in iteration.items():
-            print('     group: {}, parameter name: {}, parameter value: {}'.format(parameter_assignment[0], parameter_assignment[1], parameter_value))
+            logging.debug('     group: {}, parameter name: {}, parameter value: {}'.format(parameter_assignment[0], parameter_assignment[1], parameter_value))
 
     for permutation in dynamic_scn_params:
 
