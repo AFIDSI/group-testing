@@ -94,6 +94,11 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
     # initialize counter
     job_counter = 0
 
+    # batch trackers
+    batch_size = 400
+    batch_count = 0
+
+
     # collect results in array (just so we know when everything is done)
     result_collection = []
 
@@ -101,24 +106,29 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
 
         for group_params_instance in iter_param_variations(dynamic_permutations, group_params):
 
-            # create unique id for simulation
-            sim_id = uuid.uuid4()
+                if len(result_collection) < batch_size:
 
-            job_counter += 1
+                    # create unique id for simulation
+                    sim_id = uuid.uuid4()
 
-            # submit the simulation to dask
-            submit_simulation(ntrajectories,
-                              time_horizon, result_collection,
-                              interaction_matrix, group_sizes,
-                              group_params_instance, client, sim_id,
-                              job_counter)
+                    # submit the simulation to dask
+                    submit_simulation(ntrajectories,
+                                      time_horizon, result_collection,
+                                      interaction_matrix, group_sizes,
+                                      group_params_instance, client, sim_id,
+                                      job_counter, batch_count)
 
-        process_results(result_collection, job_counter, args, submit_time)
+                else:
+
+                    process_results(result_collection, job_counter, args, submit_time)
+                    result_collection = []
+
+    logging.info("Processing of simulations complete!")
 
 
 def submit_simulation(ntrajectories, time_horizon,
                       result_collection, interaction_matrix, group_sizes,
-                      group_params, client, sim_id, job_counter):
+                      group_params, client, sim_id, job_counter, batch_count):
     """
     Prepares a scenario for multiple iterations, submits that process to the
     dask client, and then appends the result (promise/future) to the
@@ -143,6 +153,7 @@ def submit_simulation(ntrajectories, time_horizon,
         replicate_id = uuid.uuid4()
         # keep track of how many jobs were submitted
         job_counter += 1
+        batch_count += 1
         submittable_sim = copy.deepcopy(sim)
         submittable_sim.sim_id = sim_id
         submittable_sim.replicate_id = replicate_id
@@ -217,65 +228,68 @@ def process_results(result_collection, job_counter, args, submit_time):
     engine = sqlalchemy.create_engine(db_config.config_string)
 
     for result in result_collection:
-
-        # dask approach
+        logging.info('writing result to database')
         output = result.result()
+        result_to_database(output, engine, submit_time, job_counter, get_counter)
 
-        # write sim params
-        interaction_matrix = output[0]
-        ntrajectories = output[1]
-        time_horizon = output[2]
-        group_names = output[3]
-        sim_id = output[6]
-        replicate_id = output[7]
+    logging.info('batch written to database')
 
-        sim_params = pd.DataFrame({
-            'ntrajectories': ntrajectories,
-            'time_horizon': time_horizon,
-            'group_names': group_names,
-            'sim_id': sim_id
-            })
 
-        sim_params['contact_rates'] = interaction_matrix.tolist()
+def result_to_database(output, engine, submit_time, job_counter, get_counter):
 
-        sim_params.to_sql('sim_params', con=engine, index_label='group_index', if_exists='append', method='multi')
+    # write sim params
+    interaction_matrix = output[0]
+    ntrajectories = output[1]
+    time_horizon = output[2]
+    group_names = output[3]
+    sim_id = output[6]
+    replicate_id = output[7]
 
-        # write group params
-        for group_number in range(len(output[4])):
-            output[4][group_number]['sim_id'] = sim_id
+    sim_params = pd.DataFrame({
+        'ntrajectories': ntrajectories,
+        'time_horizon': time_horizon,
+        'group_names': group_names,
+        'sim_id': sim_id
+        })
 
-            # remove non-conforming entries
-            severity_prevalence = output[4][group_number].pop('severity_prevalence').tolist()
-            age_distribution = output[4][group_number].pop('age_distribution')
+    sim_params['contact_rates'] = interaction_matrix.tolist()
 
-            # param_df = pd.DataFrame(output[4][group_number]).iloc[[0], 1:]
-            param_df = pd.DataFrame(output[4][group_number], index=[0])
-            param_df['group_number'] = group_number
+    sim_params.to_sql('sim_params', con=engine, index_label='group_index', if_exists='append', method='multi')
 
-            # stupid hacky stuff to get it to store an array in a cell and write it to the db
-            param_df['severity_prevalence'] = None
-            param_df['age_distribution'] = None
+    # write group params
+    for group_number in range(len(output[4])):
+        output[4][group_number]['sim_id'] = sim_id
 
-            # param_df.at[0, 'severity_prevalence'] = output[4][group_number]['severity_prevalence'].tolist()
-            param_df.at[0, 'severity_prevalence'] = severity_prevalence
-            param_df.at[0, 'age_distribution'] = age_distribution
-            param_df.at[0, 'submit_time'] = submit_time
+        # remove non-conforming entries
+        severity_prevalence = output[4][group_number].pop('severity_prevalence').tolist()
+        age_distribution = output[4][group_number].pop('age_distribution')
 
-            # write to database
-            param_df.to_sql('group_params', con=engine, if_exists='append', method='multi')
+        # param_df = pd.DataFrame(output[4][group_number]).iloc[[0], 1:]
+        param_df = pd.DataFrame(output[4][group_number], index=[0])
+        param_df['group_number'] = group_number
 
-        # write results
-        for group_number in range(len(output[5])):
-            output[5][group_number]['sim_id'] = sim_id
-            output[5][group_number]['replicate_id'] = replicate_id
-            output[5][group_number]['group_number'] = group_number
-            output[5][group_number].to_sql('results', index_label='t', con=engine, if_exists='append', method='multi')
+        # stupid hacky stuff to get it to store an array in a cell and write it to the db
+        param_df['severity_prevalence'] = None
+        param_df['age_distribution'] = None
 
-        get_counter += 1
+        # param_df.at[0, 'severity_prevalence'] = output[4][group_number]['severity_prevalence'].tolist()
+        param_df.at[0, 'severity_prevalence'] = severity_prevalence
+        param_df.at[0, 'age_distribution'] = age_distribution
+        param_df.at[0, 'submit_time'] = submit_time
 
-        logging.info("{}: {} of {} simulations complete!".format(time.ctime(), get_counter, job_counter))
+        # write to database
+        param_df.to_sql('group_params', con=engine, if_exists='append', method='multi')
 
-    logging.info("Simulations done.")
+    # write results
+    for group_number in range(len(output[5])):
+        output[5][group_number]['sim_id'] = sim_id
+        output[5][group_number]['replicate_id'] = replicate_id
+        output[5][group_number]['group_number'] = group_number
+        output[5][group_number].to_sql('results', index_label='t', con=engine, if_exists='append', method='multi')
+
+    get_counter += 1
+
+    logging.info("{}: {} of {} simulations complete!".format(time.ctime(), get_counter, job_counter))
 
 
 def initialize_results_directory(sim_scn_dir, job_counter, param_specifier,
@@ -313,6 +327,7 @@ def get_client():
         # local execution
         cluster = LocalCluster(multiprocessing.cpu_count() - 1)
         client = Client(cluster)
+    logging.info('CLIENT SERVICES: {}'.format(client.scheduler_info()['services']))
     return client
 
 
@@ -378,7 +393,7 @@ def iter_param_variations(dynamic_scn_params, params):
     parameter dictionary object, and param_specifier is a smaller dict
     specifying the varying params and the value they are taking right now
     """
-
+    # pdb.set_trace()
     # iterate over the global scenario parameters to vary
     i = 0
     for iteration in dynamic_scn_params:
