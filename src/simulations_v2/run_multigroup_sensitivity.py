@@ -106,22 +106,25 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
 
         for group_params_instance in iter_param_variations(dynamic_permutations, group_params):
 
-                if len(result_collection) < batch_size:
+            if len(result_collection) < batch_size:
 
-                    # create unique id for simulation
-                    sim_id = uuid.uuid4()
+                # create unique id for simulation
+                sim_id = uuid.uuid4()
 
-                    # submit the simulation to dask
-                    submit_simulation(ntrajectories,
-                                      time_horizon, result_collection,
-                                      interaction_matrix, group_sizes,
-                                      group_params_instance, client, sim_id,
-                                      job_counter, batch_count)
+                # submit the simulation to dask
+                submit_simulation(ntrajectories,
+                                  time_horizon, result_collection,
+                                  interaction_matrix, group_sizes,
+                                  group_params_instance, client, sim_id,
+                                  job_counter, batch_count)
 
-                else:
+            else:
 
-                    process_results(result_collection, job_counter, args, submit_time)
-                    result_collection = []
+                process_results(result_collection, job_counter, args, submit_time)
+                result_collection = []
+
+        # catch the last batch
+        process_results(result_collection, job_counter, args, submit_time)
 
     logging.info("Processing of simulations complete!")
 
