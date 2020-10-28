@@ -51,6 +51,7 @@ VALID_GLOBAL_PARAMS_TO_VARY = [
     'population_size'
     ]
 
+BATCH_SIZE = 100
 
 def simulate(args):
     """
@@ -78,12 +79,12 @@ def simulate(args):
 
     run_simulations(params['ntrajectories'], params['time_horizon'],
                     dynamic_permutations, interaction_matrix, group_params,
-                    group_sizes, args)
+                    group_sizes, BATCH_SIZE, args)
 
 
 def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
                     interaction_matrix, group_params,
-                    group_sizes, args):
+                    group_sizes, batch_size, args):
     """
     Function to prep and submit individual simulations to a dask cluster, then
     process the results of the simulation.
@@ -93,11 +94,6 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
 
     # initialize counter
     job_counter = 0
-
-    # batch trackers
-    batch_size = 100
-    batch_count = 0
-
 
     # collect results in array (just so we know when everything is done)
     result_collection = []
@@ -116,7 +112,7 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
                                   time_horizon, result_collection,
                                   interaction_matrix, group_sizes,
                                   group_params_instance, client, sim_id,
-                                  job_counter, batch_count)
+                                  job_counter)
 
             else:
 
@@ -131,7 +127,7 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
 
 def submit_simulation(ntrajectories, time_horizon,
                       result_collection, interaction_matrix, group_sizes,
-                      group_params, client, sim_id, job_counter, batch_count):
+                      group_params, client, sim_id, job_counter):
     """
     Prepares a scenario for multiple iterations, submits that process to the
     dask client, and then appends the result (promise/future) to the
@@ -156,7 +152,6 @@ def submit_simulation(ntrajectories, time_horizon,
         replicate_id = uuid.uuid4()
         # keep track of how many jobs were submitted
         job_counter += 1
-        batch_count += 1
         submittable_sim = copy.deepcopy(sim)
         submittable_sim.sim_id = sim_id
         submittable_sim.replicate_id = replicate_id
@@ -324,7 +319,7 @@ def get_client():
         from typing import List
 
         cluster = CHTCCluster(worker_image="blue442/group-modeling-chtc:0.1", job_extra={"accounting_group": "COVID19_AFIDSI"})
-        cluster.adapt(minimum=400, maximum=400)
+        cluster.adapt(minimum=BATCH_SIZE, maximum=BATCH_SIZE)
         client = Client(cluster)
 
     else:
