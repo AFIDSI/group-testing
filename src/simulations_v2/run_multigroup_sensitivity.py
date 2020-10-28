@@ -95,7 +95,7 @@ def run_simulations(ntrajectories, time_horizon, dynamic_permutations,
     job_counter = 0
 
     # batch trackers
-    batch_size = 400
+    batch_size = 100
     batch_count = 0
 
 
@@ -231,8 +231,9 @@ def process_results(result_collection, job_counter, args, submit_time):
     engine = sqlalchemy.create_engine(db_config.config_string)
 
     for result in result_collection:
-        logging.info('writing result to database')
+        logging.debug('waiting for results')
         output = result.result()
+        logging.debug('writing result to database')
         result_to_database(output, engine, submit_time, job_counter, get_counter)
 
     logging.info('batch written to database')
